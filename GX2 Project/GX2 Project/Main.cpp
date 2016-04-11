@@ -11,11 +11,10 @@
 
 #include "Trivial_PSCOLOR.csh"
 #include "Trivial_VSCOLOR.csh"
+#include "PSUV.csh"
+#include "VSUV.csh"
 
 using namespace std;
-
-#include <d3d11.h>
-#pragma comment(lib, "d3d11.lib")
 
 #define BACKBUFFER_WIDTH	500
 #define BACKBUFFER_HEIGHT	500
@@ -40,34 +39,32 @@ class DEMO_APP
 	ID3D11Buffer *groundVBuffer;
 	D3D11_BUFFER_DESC groundVBDes;
 	ID3D11Buffer *oBjVBuffer;
-	ID3D11Buffer *oBj2VBuffer;
 	D3D11_BUFFER_DESC oBjVBDes;
-	D3D11_BUFFER_DESC oBj2VBDes;
 	unsigned int groundVCount;
 	unsigned int objVCount;
-	unsigned int obj2VCount = 1641;
-	ID3D11InputLayout *ILayout;
+	ID3D11InputLayout *ILayoutCOLOR;
+	ID3D11InputLayout *ILayoutUV;
 	ID3D11Texture2D *texTwoD;
 	ID3D11DepthStencilView *stenView;
 	ID3D11RasterizerState *rasStateThree;
 	ID3D11RasterizerState *rasStateFour;
 
-	ID3D11VertexShader *VShader;
-	ID3D11PixelShader *PShader;
+	ID3D11VertexShader *VShaderCOLOR;
+	ID3D11PixelShader *PShaderCOLOR;
+	ID3D11VertexShader *VShaderUV;
+	ID3D11PixelShader *PShaderUV;
 
 	ID3D11Buffer *groundCBuffer;
 	ID3D11Buffer *objCBuffer;
-	ID3D11Buffer *obj2CBuffer;
 	ID3D11Buffer *cBufferView;
 	ID3D11Buffer *iBuffer;
-	ID3D11Buffer *iBuffer2;
 	XTime time;
 
 public:
 	
+	OBJ_STRUCT pyramid;
 	OBJECT_TO_VRAM ground;
 	OBJECT_TO_VRAM obj;
-	OBJECT_TO_VRAM obj2;
 	SCENE_TO_VRAM camera;
 	unsigned int numIn = 60;
 	unsigned int inBuffer[60];
@@ -312,6 +309,8 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	Geometry[11].rgb.x = 1;
 	Geometry[11].rgb.y = 1;
 	Geometry[11].rgb.z = 0;
+	
+	LoadOBJ("test pyramid.obj", pyramid, device);
 
 	// BEGIN PART 4
 	// TODO: PART 4 STEP 1
@@ -330,12 +329,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	oBjVBDes.ByteWidth = sizeof(SIMPLE_VERTEX) * objVCount;
 	oBjVBDes.MiscFlags = 0;
 
-	oBj2VBDes.Usage = D3D11_USAGE_IMMUTABLE;
-	oBj2VBDes.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	oBj2VBDes.CPUAccessFlags = NULL;
-	oBj2VBDes.ByteWidth = sizeof(OBJ_VERT) * obj2VCount;
-	oBj2VBDes.MiscFlags = 0;
-
 	// TODO: PART 2 STEP 3c
 
 	D3D11_SUBRESOURCE_DATA groundInitData;
@@ -350,25 +343,21 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	oBjInitData.SysMemPitch = 0;
 	oBjInitData.SysMemSlicePitch = 0;
 
-	D3D11_SUBRESOURCE_DATA oBj2InitData;
-
-	oBj2InitData.pSysMem = teapot_data;
-	oBj2InitData.SysMemPitch = 0;
-	oBj2InitData.SysMemSlicePitch = 0;
-
 	// TODO: PART 2 STEP 3d
 
 	device->CreateBuffer(&groundVBDes, &groundInitData, &groundVBuffer);
 	device->CreateBuffer(&oBjVBDes, &oBjInitData, &oBjVBuffer);
-	device->CreateBuffer(&oBj2VBDes, &oBj2InitData, &oBj2VBuffer);
 	delete[] Lines;
 
 	// TODO: PART 2 STEP 5
 	// ADD SHADERS TO PROJECT, SET BUILD OPTIONS & COMPILE
 
 	// TODO: PART 2 STEP 7
-	device->CreateVertexShader(Trivial_VS, sizeof(Trivial_VS), nullptr, &VShader);
-	device->CreatePixelShader(Trivial_PS, sizeof(Trivial_PS), nullptr, &PShader);
+	device->CreateVertexShader(Trivial_VSCOLOR, sizeof(Trivial_VSCOLOR), nullptr, &VShaderCOLOR);
+	device->CreatePixelShader(Trivial_PSCOLOR, sizeof(Trivial_PSCOLOR), nullptr, &PShaderCOLOR);
+
+	device->CreateVertexShader(VSUV, sizeof(VSUV), nullptr, &VShaderUV);
+	device->CreatePixelShader(PSUV, sizeof(PSUV), nullptr, &PShaderUV);
 
 	// TODO: PART 2 STEP 8a
 
@@ -378,9 +367,17 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 		{ "COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 	};
 
+	D3D11_INPUT_ELEMENT_DESC vLayoutUV[] =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "UVS", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "NORMALS", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }
+	};
+
 	// TODO: PART 2 STEP 8b
 
-	device->CreateInputLayout(vLayoutCOLOR, 2, Trivial_VS, sizeof(Trivial_VS), &ILayout);
+	device->CreateInputLayout(vLayoutCOLOR, 2, Trivial_VSCOLOR, sizeof(Trivial_VSCOLOR), &ILayoutCOLOR);
+	device->CreateInputLayout(vLayoutUV, 3, VSUV, sizeof(VSUV), &ILayoutUV);
 
 	// TODO: PART 3 STEP 3
 
@@ -404,16 +401,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	objVRD.MiscFlags = 0;
 
 	device->CreateBuffer(&objVRD, nullptr, &objCBuffer);
-
-	D3D11_BUFFER_DESC obj2VRD;
-	obj2VRD.Usage = D3D11_USAGE_DYNAMIC;
-	obj2VRD.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	obj2VRD.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-	obj2VRD.ByteWidth = sizeof(OBJECT_TO_VRAM);
-	obj2VRD.StructureByteStride = sizeof(float);
-	obj2VRD.MiscFlags = 0;
-
-	device->CreateBuffer(&obj2VRD, nullptr, &obj2CBuffer);
 
 	D3D11_BUFFER_DESC vRDView;
 	vRDView.Usage = D3D11_USAGE_DYNAMIC;
@@ -483,22 +470,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	device->CreateBuffer(&vRDIndex, &IndexData, &iBuffer);
 
-	D3D11_SUBRESOURCE_DATA IndexData2;
-
-	IndexData2.pSysMem = teapot_indicies;
-	IndexData2.SysMemPitch = 0;
-	IndexData2.SysMemSlicePitch = 0;
-
-	D3D11_BUFFER_DESC vRDIndex2;
-	vRDIndex2.Usage = D3D11_USAGE_IMMUTABLE;
-	vRDIndex2.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	vRDIndex2.CPUAccessFlags = NULL;
-	vRDIndex2.ByteWidth = sizeof(unsigned int) * 4632;
-	vRDIndex2.StructureByteStride = sizeof(unsigned int);
-	vRDIndex2.MiscFlags = 0;
-
-	device->CreateBuffer(&vRDIndex2, &IndexData2, &iBuffer2);
-
 	// TODO: PART 3 STEP 4b
 
 	float nearPlane = 0.1, farPlane = 100, fieldOfView = 30, AspectRatio = BACKBUFFER_HEIGHT / BACKBUFFER_WIDTH;
@@ -507,7 +478,9 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	ground.worldMatrix = worldMatrix;
 	obj.worldMatrix = worldMatrix;
-	obj2.worldMatrix = worldMatrix;
+	XMMATRIX PyWo = XMLoadFloat4x4(&pyramid.worldMatrix);
+	PyWo = XMMatrixTranslation(0, 0, 5) * PyWo;
+	XMStoreFloat4x4(&pyramid.worldMatrix, PyWo);
 	camera.projectionMatrix = projectionMatrix;
 	camera.viewMatrix = viewMatrix;
 }
@@ -605,12 +578,12 @@ bool DEMO_APP::Run()
 
 	// TODO: PART 2 STEP 9b
 
-	dContext->VSSetShader(VShader, NULL, 0);
-	dContext->PSSetShader(PShader, NULL, 0);
+	dContext->VSSetShader(VShaderCOLOR, NULL, 0);
+	dContext->PSSetShader(PShaderCOLOR, NULL, 0);
 
 	// TODO: PART 2 STEP 9c
 
-	dContext->IASetInputLayout(ILayout);
+	dContext->IASetInputLayout(ILayoutCOLOR);
 
 	// TODO: PART 2 STEP 9d
 
@@ -634,20 +607,26 @@ bool DEMO_APP::Run()
 	dContext->DrawIndexed(numIn, 0, 0);
 
 
-	//OBJECT
+	//PYRAMID
 
-	dContext->IASetIndexBuffer(iBuffer2, DXGI_FORMAT_R32_UINT, offSet);
-	dContext->Map(obj2CBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
-	//((SEND_TO_VRAM*)map.pData)->constantColor[0] = toShader.constantColor[0];
-	memcpy(map.pData, &obj2, sizeof(obj2));
-	dContext->Unmap(obj2CBuffer, 0);
+	dContext->IASetIndexBuffer(pyramid.IBuffer, DXGI_FORMAT_R32_UINT, offSet);
+	dContext->Map(pyramid.CBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
+	memcpy(map.pData, &pyramid.worldMatrix, sizeof(pyramid.worldMatrix));
+	dContext->Unmap(pyramid.CBuffer, 0);
 
-	stride = sizeof(OBJ_VERT);
-	dContext->VSSetConstantBuffers(0, 1, &obj2CBuffer);
-	dContext->IASetVertexBuffers(0, 1, &oBj2VBuffer, &stride, &offSet);
+	stride = sizeof(OBJ_TO_VRAM);
+	dContext->VSSetConstantBuffers(0, 1, &pyramid.CBuffer);
+	dContext->IASetVertexBuffers(0, 1, &pyramid.VBuffer, &stride, &offSet);
+
+	dContext->VSSetShader(VShaderUV, NULL, 0);
+	dContext->PSSetShader(PShaderUV, NULL, 0);
+
+	// TODO: PART 2 STEP 9c
+
+	dContext->IASetInputLayout(ILayoutUV);
 
 	dContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	dContext->DrawIndexed(4632, 0, 0);
+	dContext->DrawIndexed(pyramid.indexCount, 0, 0);
 
 	// END PART 2
 

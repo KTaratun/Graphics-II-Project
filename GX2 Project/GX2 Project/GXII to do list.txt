@@ -1,0 +1,6 @@
+Do texturing
+Ask why my text file isn't being read in the load obj function
+Do lighting and shadows
+fix the camera
+get the skybox working
+fix depth buffer

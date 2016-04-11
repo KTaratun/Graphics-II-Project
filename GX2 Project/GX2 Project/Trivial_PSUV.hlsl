@@ -1,4 +1,4 @@
-float4 main( float4 colorFromRasterizer : UVW ) : SV_TARGET
+float4 main( float4 colorFromRasterizer : UVS ) : SV_TARGET
 {
 	return colorFromRasterizer;
 }

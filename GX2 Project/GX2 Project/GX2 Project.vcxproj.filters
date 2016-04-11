@@ -30,6 +30,9 @@
     <ClInclude Include="DDSTextureLoader.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="LoadOBJ.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Main.cpp">
@@ -45,6 +48,8 @@
   <ItemGroup>
     <FxCompile Include="Trivial_VSCOLOR.hlsl" />
     <FxCompile Include="Trivial_PSCOLOR.hlsl" />
+    <FxCompile Include="PSUV.hlsl" />
+    <FxCompile Include="VSUV.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="GXIIfloor.dds" />

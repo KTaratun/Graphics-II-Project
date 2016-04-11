@@ -3,12 +3,13 @@
 struct INPUT_VERTEX
 {
 	float3 coordinate : POSITION;
-	float3 color : COLOR;
+	float2 uvs : UVS;
+	float3 nrm : NORMALS;
 };
 
 struct OUTPUT_VERTEX
 {
-	float3 colorOut : COLOR;
+	float2 uvOut : UVS;
 	float4 projectedCoordinate : SV_POSITION;
 };
 
@@ -40,7 +41,7 @@ OUTPUT_VERTEX main(INPUT_VERTEX fromVertexBuffer)
 	/*sendToRasterizer.projectedCoordinate.xy += constantOffset;*/
 
 	// TODO : PART 3 STEP 7
-	sendToRasterizer.colorOut = fromVertexBuffer.color;
+	sendToRasterizer.uvOut = fromVertexBuffer.uvs;
 	// END PART 3
 
 	// TODO: Move into view space, then projection space
