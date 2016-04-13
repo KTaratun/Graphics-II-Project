@@ -23,7 +23,7 @@ struct OBJ_STRUCT
 	vector<XMFLOAT2> uvs;
 	ID3D11Buffer *VBuffer, *IBuffer, *CBuffer;
 	OBJ_TO_VRAM* data;
-	unsigned int uniqVert = 0, indexCount = 0;
+	unsigned int indexCount = 0, *indicies;
 };
 
 void CreateVBuffer(ID3D11Device* device, OBJ_STRUCT& obj)
@@ -33,7 +33,8 @@ void CreateVBuffer(ID3D11Device* device, OBJ_STRUCT& obj)
 	VBDes.Usage = D3D11_USAGE_IMMUTABLE;
 	VBDes.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	VBDes.CPUAccessFlags = NULL;
-	VBDes.ByteWidth = sizeof(OBJ_TO_VRAM) * obj.uniqVert;
+	VBDes.ByteWidth = sizeof(OBJ_TO_VRAM) * obj.indexCount;
+	VBDes.StructureByteStride = sizeof(OBJ_TO_VRAM);
 	VBDes.MiscFlags = 0;
 
 	D3D11_SUBRESOURCE_DATA InitData;
@@ -49,7 +50,7 @@ void CreateIBuffer(ID3D11Device* device, OBJ_STRUCT& obj)
 {
 	D3D11_SUBRESOURCE_DATA IndexData;
 
-	IndexData.pSysMem = &obj.indexCount;
+	IndexData.pSysMem = obj.indicies;
 	IndexData.SysMemPitch = 0;
 	IndexData.SysMemSlicePitch = 0;
 
@@ -99,19 +100,8 @@ bool LoadOBJ(const char* path,
 		while (1)
 		{
 			char lineHeader[128];
-			//char temp = NULL;
 			XMFLOAT3 tempF3;
 			XMFLOAT2 tempF2;
-			//int count = 0, spot = 0, i = 0;
-			//do
-			//{
-			//	file.get(temp);
-			//	count++;
-			//} while (temp);
-
-			//file.seekg(0);
-			//file.read(meshName, count);
-			//spot += count;
 
 			int res = fscanf_s(file, "%s", lineHeader, 128);
 			if (res == EOF)
@@ -121,7 +111,6 @@ bool LoadOBJ(const char* path,
 			{
 				int res = fscanf_s(file, "%f %f %f\n", &tempF3.x, &tempF3.y, &tempF3.z);
 				temp_verticies.push_back(tempF3);
-				obj.uniqVert += 1;
 			}
 			else if (strcmp(lineHeader, "vt") == 0)
 			{
@@ -154,18 +143,9 @@ bool LoadOBJ(const char* path,
 				normalIndicies.push_back(normalIndex[0]);
 				normalIndicies.push_back(normalIndex[1]);
 				normalIndicies.push_back(normalIndex[2]);
-
-				obj.indexCount += 1;
+				obj.indexCount += 3;
 			}
 		}
-
-		/*obj.verticies.push_back(temp_verticies);
-		obj.uvs.push_back(temp_uvs);
-		obj.normals.push_back(temp_normals);*/
-
-		OBJ_TO_VRAM* tempData = new OBJ_TO_VRAM[obj.uniqVert];
-		obj.data = tempData;
-		delete[] tempData;
 
 		for (unsigned int i = 0; i < vertexIndicies.size(); i++)
 		{
@@ -174,22 +154,42 @@ bool LoadOBJ(const char* path,
 			obj.verticies.push_back(vertex);
 		}
 		
-		for (unsigned int i = 0; i < uvIndicies.size(); i++)
-		{
-			unsigned int uvIndex = uvIndicies[i];
-			XMFLOAT2 uv = temp_uvs[uvIndex - 1];
-			obj.uvs.push_back(uv);
-		}
-		
 		for (unsigned int i = 0; i < normalIndicies.size(); i++)
 		{
 			unsigned int normalIndex = normalIndicies[i];
 			XMFLOAT3 normal = temp_normals[normalIndex - 1];
 			obj.normals.push_back(normal);
 		}
+
+		for (unsigned int i = 0; i < uvIndicies.size(); i++)
+		{
+			unsigned int uvIndex = uvIndicies[i];
+			XMFLOAT2 uv = temp_uvs[uvIndex - 1];
+			obj.uvs.push_back(uv);
+		}
+
+		OBJ_TO_VRAM* tempData = new OBJ_TO_VRAM[obj.indexCount];
+		unsigned int* tempIndicies = new unsigned int[obj.indexCount];
+
+		for (size_t i = 0; i < obj.indexCount; i++)
+		{
+			tempData[i].xyz = obj.verticies[i];
+			tempIndicies[i] = i;
+			tempData[i].normals = obj.normals[i];
+			tempData[i].uvs = obj.uvs[i];
+		}
+
+		obj.data = tempData;
+		obj.indicies = tempIndicies;
+		//delete[] tempData;
+
 		CreateVBuffer(device, obj);
 		CreateIBuffer(device, obj);
 		CreateCBuffer(device, obj);
+
+		XMMATRIX obWo = XMLoadFloat4x4(&obj.worldMatrix);
+		obWo = XMMatrixIdentity();
+		XMStoreFloat4x4(&obj.worldMatrix, obWo);
 		return true;
 	}
 }

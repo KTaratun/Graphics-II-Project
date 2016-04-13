@@ -218,7 +218,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	D3D11_RASTERIZER_DESC rasDThree;
 
 	rasDThree.FillMode = D3D11_FILL_SOLID;
-	rasDThree.CullMode = D3D11_CULL_NONE;
+	//rasDThree.CullMode = D3D11_CULL_NONE;
 	rasDThree.AntialiasedLineEnable = true;
 
 	device->CreateRasterizerState(&rasDThree, &rasStateThree);
@@ -479,7 +479,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	ground.worldMatrix = worldMatrix;
 	obj.worldMatrix = worldMatrix;
 	XMMATRIX PyWo = XMLoadFloat4x4(&pyramid.worldMatrix);
-	PyWo = XMMatrixTranslation(0, 0, 5) * PyWo;
+	PyWo = XMMatrixTranslation(0, -1, 5) * PyWo;
 	XMStoreFloat4x4(&pyramid.worldMatrix, PyWo);
 	camera.projectionMatrix = projectionMatrix;
 	camera.viewMatrix = viewMatrix;
@@ -540,16 +540,6 @@ bool DEMO_APP::Run()
 	dContext->ClearRenderTargetView(rTView, color);
 	dContext->ClearDepthStencilView(stenView, D3D11_CLEAR_DEPTH, 1, 0);
 
-	// TODO: PART 5 STEP 4
-
-	// TODO: PART 5 STEP 5
-
-	// TODO: PART 5 STEP 6
-
-	// TODO: PART 5 STEP 7
-
-	// END PART 5
-
 	// TODO: PART 3 STEP 5
 
 	D3D11_MAPPED_SUBRESOURCE map;
@@ -587,16 +577,13 @@ bool DEMO_APP::Run()
 
 	// TODO: PART 2 STEP 9d
 
-	//dContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	dContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
 
 	// TODO: PART 2 STEP 10
 
-	//dContext->DrawIndexed(numIn, 0, 0);
 	dContext->Draw(groundVCount, 0);
 
 	dContext->Map(objCBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
-	//((SEND_TO_VRAM*)map.pData)->constantColor[0] = toShader.constantColor[0];
 	memcpy(map.pData, &obj, sizeof(obj));
 	dContext->Unmap(objCBuffer, 0);
 
