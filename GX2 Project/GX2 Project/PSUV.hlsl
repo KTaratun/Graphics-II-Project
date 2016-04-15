@@ -1,5 +1,5 @@
-Texture2D shaderTexture;
-SamplerState SampleType;
+Texture2D shaderTexture : register( t0 );
+SamplerState SampleType : register( s0 );
 
 struct colorFromRasterizer
 {
@@ -9,8 +9,6 @@ struct colorFromRasterizer
 
 float4 main(colorFromRasterizer input) : SV_TARGET
 {
-	float4 textureColor;
-	textureColor = shaderTexture.Sample(SampleType, input.uv);
-
+	float4 textureColor = shaderTexture.Sample(SampleType, input.uv);
 	return textureColor;
 }

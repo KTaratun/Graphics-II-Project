@@ -1,8 +1,22 @@
 #pragma once
 
 #include "SharedDefines.h"
+#include "XTime.h"
 #include "LoadOBJ.h"
+//#include <atlbase.h>
+//CComPtr<int> kss;
 
+#define BACKBUFFER_WIDTH	500
+#define BACKBUFFER_HEIGHT	500
+
+void CreateStar(unsigned int* inBuffer, ID3D11Device** device, ID3D11Buffer** starVBuffer,
+	ID3D11Buffer** iBuffer);
+
+void CreateDepthBuffer(ID3D11Device** device, ID3D11DeviceContext** dContext, ID3D11RenderTargetView** rTView,
+	ID3D11DepthStencilView** stenView, ID3D11RasterizerState** rasState, ID3D11Texture2D** texTwoD,
+	IDXGISwapChain** swapChain);
+
+void CreateGround(unsigned int* inBuffer, ID3D11Device** device, ID3D11Buffer **groundVBuffer, ID3D11Buffer **groundIBuffer);
 
 struct SIMPLE_VERTEX
 {
@@ -19,6 +33,5 @@ struct SCENE_TO_VRAM
 	XMMATRIX viewMatrix, projectionMatrix;
 };
 
-XMMATRIX worldMatrix = XMMatrixIdentity();
-XMMATRIX viewMatrix = XMMatrixIdentity();
-XMMATRIX projectionMatrix;
+void CameraMovement(SCENE_TO_VRAM &camera, XTime &time, double &xMove,
+	double &yMove, double &zMove);

@@ -5,9 +5,7 @@
 #include <windows.h>
 #include <ctime>
 #include "Defines.h"
-#include "XTime.h"
 #include "teapot.h"
-#include "DDSTextureLoader.h"
 
 #include "Trivial_PSCOLOR.csh"
 #include "Trivial_VSCOLOR.csh"
@@ -15,9 +13,6 @@
 #include "VSUV.csh"
 
 using namespace std;
-
-#define BACKBUFFER_WIDTH	500
-#define BACKBUFFER_HEIGHT	500
 
 //************************************************************
 //************ SIMPLE WINDOWS APP CLASS **********************
@@ -37,40 +32,43 @@ class DEMO_APP
 	D3D11_VIEWPORT					vPort;
 
 	ID3D11Buffer *groundVBuffer;
-	D3D11_BUFFER_DESC groundVBDes;
-	ID3D11Buffer *oBjVBuffer;
-	D3D11_BUFFER_DESC oBjVBDes;
-	unsigned int groundVCount;
-	unsigned int objVCount;
+	ID3D11Buffer *groundIBuffer;
+	ID3D11Buffer *starVBuffer;
+	ID3D11Buffer *starIBuffer;
+	ID3D11Buffer *objCBuffer;
+	ID3D11Buffer *loadCBuffer;
+	ID3D11Buffer *cBufferView;
+
 	ID3D11InputLayout *ILayoutCOLOR;
 	ID3D11InputLayout *ILayoutUV;
-	ID3D11Texture2D *texTwoD;
-	ID3D11DepthStencilView *stenView;
-	ID3D11RasterizerState *rasStateThree;
-	ID3D11RasterizerState *rasStateFour;
-
 	ID3D11VertexShader *VShaderCOLOR;
 	ID3D11PixelShader *PShaderCOLOR;
 	ID3D11VertexShader *VShaderUV;
 	ID3D11PixelShader *PShaderUV;
 
-	ID3D11Buffer *groundCBuffer;
-	ID3D11Buffer *objCBuffer;
-	ID3D11Buffer *cBufferView;
-	ID3D11Buffer *iBuffer;
+	ID3D11Texture2D *texTwoD;
+	ID3D11DepthStencilView *stenView;
+	ID3D11RasterizerState *rasState;
+	D3D11_MAPPED_SUBRESOURCE map;
 	XTime time;
+
+	XMMATRIX worldMatrix = XMMatrixIdentity();
+	XMMATRIX viewMatrix = XMMatrixIdentity();
+	XMMATRIX projectionMatrix;
 
 public:
 	
 	OBJ_STRUCT pyramid;
-	OBJECT_TO_VRAM ground;
 	OBJECT_TO_VRAM obj;
+	OBJECT_TO_VRAM ground;
 	SCENE_TO_VRAM camera;
 	unsigned int numIn = 60;
 	unsigned int inBuffer[60];
-	float xMove = 0;
-	float yMove = 0;
-	float zMove = 0;
+	unsigned int groundInBuffer[4];
+
+	double xMove = 0;
+	double yMove = 0;
+	double zMove = 0;
 
 	DEMO_APP(HINSTANCE hinst, WNDPROC proc);
 	bool Run();
@@ -114,6 +112,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	flag = 0;
 #endif
 
+	// SWAPCHAIN CREATION
 	DXGI_SWAP_CHAIN_DESC sCDes;
 	ZeroMemory(&sCDes, sizeof(DXGI_SWAP_CHAIN_DESC));
 	sCDes.BufferCount = 1;
@@ -143,230 +142,35 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 		nullptr,					//featureLevel??
 		&dContext);					//deviceContext
 
-	D3D11_TEXTURE2D_DESC texDes;
 
-	texDes.Width = BACKBUFFER_WIDTH;
-	texDes.Height = BACKBUFFER_HEIGHT;
+	CreateDepthBuffer(&device, &dContext, &rTView, &stenView, &rasState, &texTwoD, &swapChain);
 
-	texDes.MipLevels = 1;
-	texDes.ArraySize = 1;
-	texDes.Format = DXGI_FORMAT_D32_FLOAT;
-	texDes.SampleDesc.Count = 1;
-	texDes.SampleDesc.Quality = 0;
-	texDes.Usage = D3D11_USAGE_DEFAULT;
-	texDes.BindFlags = D3D11_BIND_DEPTH_STENCIL;
-	texDes.CPUAccessFlags = 0;
-	texDes.MiscFlags = 0;
-
-	device->CreateTexture2D(&texDes, NULL, &texTwoD);
-
-	D3D11_DEPTH_STENCIL_DESC dsDesc;
-
-	// Depth test parameters
-	dsDesc.DepthEnable = true;
-	dsDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-	dsDesc.DepthFunc = D3D11_COMPARISON_LESS;
-
-	// Stencil test parameters
-	dsDesc.StencilEnable = true;
-	dsDesc.StencilReadMask = 0xFF;
-	dsDesc.StencilWriteMask = 0xFF;
-
-	// Stencil operations if pixel is front-facing
-	dsDesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
-	dsDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_INCR;
-	dsDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
-	dsDesc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
-
-	// Stencil operations if pixel is back-facing
-	dsDesc.BackFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
-	dsDesc.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_DECR;
-	dsDesc.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
-	dsDesc.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
-
-	// Create depth stencil state
-	ID3D11DepthStencilState * pDSState;
-	device->CreateDepthStencilState(&dsDesc, &pDSState);
-
-	// Bind depth stencil state
-	dContext->OMSetDepthStencilState(pDSState, 1);
-
-	D3D11_DEPTH_STENCIL_VIEW_DESC descDSV;
-	descDSV.Format = DXGI_FORMAT_D32_FLOAT;
-	descDSV.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
-	descDSV.Texture2D.MipSlice = 0;
-	descDSV.Flags = 0;
-
-	// Create the depth stencil view
-	device->CreateDepthStencilView(texTwoD, // Depth stencil texture
-		&descDSV, // Depth stencil desc
-		&stenView);  // [out] Depth stencil view
-
-
-	ID3D11Resource *p_RT;
-
-	swapChain->GetBuffer(0, __uuidof(p_RT), reinterpret_cast<void**>(&p_RT));
-	device->CreateRenderTargetView(p_RT, nullptr, &rTView);
-
-	p_RT->Release();
-
-	// Bind the depth stencil view
-	dContext->OMSetRenderTargets(1,          // One rendertarget view
-		&rTView,      // Render target view, created earlier
-		stenView);     // Depth stencil view for the render target
-
-	D3D11_RASTERIZER_DESC rasDThree;
-
-	rasDThree.FillMode = D3D11_FILL_SOLID;
-	//rasDThree.CullMode = D3D11_CULL_NONE;
-	rasDThree.AntialiasedLineEnable = true;
-
-	device->CreateRasterizerState(&rasDThree, &rasStateThree);
-
-	// TODO: PART 1 STEP 5
-
+	// VIEWPORT SETUP
 	vPort.Height = BACKBUFFER_HEIGHT;
 	vPort.MaxDepth = 1;
 	vPort.MinDepth = 0;
 	vPort.Width = BACKBUFFER_WIDTH;
-	//swapChain->GetDesc(&sCDes.BufferDesc.Width);
 
-	// TODO: PART 2 STEP 3a
+	// OBJ CREATION
+	CreateStar(inBuffer, &device, &starVBuffer, &starIBuffer);
+	CreateGround(groundInBuffer, &device, &groundVBuffer, &groundIBuffer);
 
+	// OBJ LOADING
+	LoadOBJ("test pyramid.obj", L"GXIIfloor.dds", pyramid, device);
 
-	groundVCount = 84;
-	SIMPLE_VERTEX *Lines = new SIMPLE_VERTEX[groundVCount];
-
-	//ground STUFF
-
-	int j = 0;
-	for (size_t i = 0; i < groundVCount; i++)
-	{
-		if (i < 42)
-			if (i % 2)
-				Lines[i].xyz.x = -2;
-			else
-				Lines[i].xyz.x = 2;
-		else
-			Lines[i].xyz.x = (j - 30.5) * 0.2f - .1f;
-
-		if (i < 42)
-			Lines[i].xyz.z = (j - 9.5) * 0.2f - .1f;
-		else
-			if (i % 2)
-				Lines[i].xyz.z = -2;
-			else
-				Lines[i].xyz.z = 2;
-
-		Lines[i].xyz.y = -.9;
-		Lines[i].rgb.x = 0;
-		Lines[i].rgb.y = 1;
-		Lines[i].rgb.z = 0;
-
-		if (i % 2)
-			j++;
-	}
-
-	//ID3D11Texture2D *tex;
-	//ID3D11ShaderResourceView *texView;
-	//CreateDDSTextureFromFile(device, "GXIIfloor.dds", &tex, &texView, 0);
-
-	//STAR
-	//////////////////////////////
-	//////////////////////////////
-	objVCount = 12;
-	SIMPLE_VERTEX *Geometry = new SIMPLE_VERTEX[objVCount];
-
-	for (size_t i = 1; i < objVCount - 1; i++)
-	{
-		if (i % 2)
-		{
-			Geometry[i].xyz.x = (float)sin((i * 36)* 3.141592653589793 / 180.0) / 2;
-			Geometry[i].xyz.y = (float)cos((i * 36)* 3.141592653589793 / 180.0) / 2;
-		}
-		else
-		{
-			Geometry[i].xyz.x = (float)sin((i * 36)* 3.141592653589793 / 180.0);
-			Geometry[i].xyz.y = (float)cos((i * 36)* 3.141592653589793 / 180.0);
-		}
-
-		Geometry[i].xyz.z = 0;
-		Geometry[i].rgb.x = 1;
-		Geometry[i].rgb.y = 0;
-		Geometry[i].rgb.z = 0;
-	}
-
-	Geometry[0].xyz.x = 0;
-	Geometry[0].xyz.y = 0;
-	Geometry[0].xyz.z = 0.3;
-	Geometry[0].rgb.x = 1;
-	Geometry[0].rgb.y = 1;
-	Geometry[0].rgb.z = 0;
-
-	Geometry[11].xyz.x = 0;
-	Geometry[11].xyz.y = 0;
-	Geometry[11].xyz.z = -0.3;
-	Geometry[11].rgb.x = 1;
-	Geometry[11].rgb.y = 1;
-	Geometry[11].rgb.z = 0;
-	
-	LoadOBJ("test pyramid.obj", pyramid, device);
-
-	// BEGIN PART 4
-	// TODO: PART 4 STEP 1
-
-	// TODO: PART 2 STEP 3b
-
-	groundVBDes.Usage = D3D11_USAGE_IMMUTABLE;
-	groundVBDes.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	groundVBDes.CPUAccessFlags = NULL;
-	groundVBDes.ByteWidth = sizeof(SIMPLE_VERTEX) * groundVCount;
-	groundVBDes.MiscFlags = 0;
-
-	oBjVBDes.Usage = D3D11_USAGE_IMMUTABLE;
-	oBjVBDes.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	oBjVBDes.CPUAccessFlags = NULL;
-	oBjVBDes.ByteWidth = sizeof(SIMPLE_VERTEX) * objVCount;
-	oBjVBDes.MiscFlags = 0;
-
-	// TODO: PART 2 STEP 3c
-
-	D3D11_SUBRESOURCE_DATA groundInitData;
-
-	groundInitData.pSysMem = Lines;
-	groundInitData.SysMemPitch = 0;
-	groundInitData.SysMemSlicePitch = 0;
-
-	D3D11_SUBRESOURCE_DATA oBjInitData;
-
-	oBjInitData.pSysMem = Geometry;
-	oBjInitData.SysMemPitch = 0;
-	oBjInitData.SysMemSlicePitch = 0;
-
-	// TODO: PART 2 STEP 3d
-
-	device->CreateBuffer(&groundVBDes, &groundInitData, &groundVBuffer);
-	device->CreateBuffer(&oBjVBDes, &oBjInitData, &oBjVBuffer);
-	delete[] Lines;
-
-	// TODO: PART 2 STEP 5
-	// ADD SHADERS TO PROJECT, SET BUILD OPTIONS & COMPILE
-
-	// TODO: PART 2 STEP 7
+	// SHADER CREATION
 	device->CreateVertexShader(Trivial_VSCOLOR, sizeof(Trivial_VSCOLOR), nullptr, &VShaderCOLOR);
 	device->CreatePixelShader(Trivial_PSCOLOR, sizeof(Trivial_PSCOLOR), nullptr, &PShaderCOLOR);
 
 	device->CreateVertexShader(VSUV, sizeof(VSUV), nullptr, &VShaderUV);
 	device->CreatePixelShader(PSUV, sizeof(PSUV), nullptr, &PShaderUV);
 
-	// TODO: PART 2 STEP 8a
-
+	// LAYOUTS
 	D3D11_INPUT_ELEMENT_DESC vLayoutCOLOR[] =
 	{
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		{ "COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 	};
-
 	D3D11_INPUT_ELEMENT_DESC vLayoutUV[] =
 	{
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
@@ -374,24 +178,11 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 		{ "NORMALS", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }
 	};
 
-	// TODO: PART 2 STEP 8b
-
+	// LAYOUT CREATION
 	device->CreateInputLayout(vLayoutCOLOR, 2, Trivial_VSCOLOR, sizeof(Trivial_VSCOLOR), &ILayoutCOLOR);
 	device->CreateInputLayout(vLayoutUV, 3, VSUV, sizeof(VSUV), &ILayoutUV);
 
-	// TODO: PART 3 STEP 3
-
-
-	D3D11_BUFFER_DESC groundVRD;
-	groundVRD.Usage = D3D11_USAGE_DYNAMIC;
-	groundVRD.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	groundVRD.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-	groundVRD.ByteWidth = sizeof(OBJECT_TO_VRAM);
-	groundVRD.StructureByteStride = sizeof(float);
-	groundVRD.MiscFlags = 0;
-
-	device->CreateBuffer(&groundVRD, nullptr, &groundCBuffer);
-
+	// CONSTANT BUFFER CREATION
 	D3D11_BUFFER_DESC objVRD;
 	objVRD.Usage = D3D11_USAGE_DYNAMIC;
 	objVRD.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
@@ -401,6 +192,16 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	objVRD.MiscFlags = 0;
 
 	device->CreateBuffer(&objVRD, nullptr, &objCBuffer);
+
+	D3D11_BUFFER_DESC loadVRD;
+	loadVRD.Usage = D3D11_USAGE_DYNAMIC;
+	loadVRD.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	loadVRD.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	loadVRD.ByteWidth = sizeof(XMFLOAT4X4);
+	loadVRD.StructureByteStride = sizeof(float);
+	loadVRD.MiscFlags = 0;
+
+	device->CreateBuffer(&loadVRD, nullptr, &loadCBuffer);
 
 	D3D11_BUFFER_DESC vRDView;
 	vRDView.Usage = D3D11_USAGE_DYNAMIC;
@@ -412,77 +213,21 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	device->CreateBuffer(&vRDView, nullptr, &cBufferView);
 
-	//for star
-	j = 1;
-	int k = 1;
-	for (size_t i = 0; i < numIn; i++)
-	{
-		if (i < 30)
-		{
-			if (i % 3 == 0)
-		{
-		if (j == 10)
-			inBuffer[i] = 1;
-		else
-			inBuffer[i] = j + 1;
-	}
-	else if (i % 3 == 1)
-	inBuffer[i] = j;
-	else
-	{
-	inBuffer[i] = 0;
-	j++;
-	}
-	}
-	else
-	{
-	if (i % 3 == 0)
-	inBuffer[i] = k;
-	else if (i % 3 == 1)
-	{
-	if (k == 10)
-	inBuffer[i] = 1;
-	else
-	inBuffer[i] = k + 1;
-	}
-
-	else
-	{
-	inBuffer[i] = 11;
-	k++;
-	}
-	}
-	}
-
-	D3D11_SUBRESOURCE_DATA IndexData;
-
-	IndexData.pSysMem = inBuffer;
-	IndexData.SysMemPitch = 0;
-	IndexData.SysMemSlicePitch = 0;
-
-	D3D11_BUFFER_DESC vRDIndex;
-	vRDIndex.Usage = D3D11_USAGE_IMMUTABLE;
-	vRDIndex.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	vRDIndex.CPUAccessFlags = NULL;
-	vRDIndex.ByteWidth = sizeof(unsigned int) * numIn;
-	//vRDIndex.StructureByteStride = sizeof(unsigned int);
-	vRDIndex.MiscFlags = 0;
-
-	device->CreateBuffer(&vRDIndex, &IndexData, &iBuffer);
-
-	// TODO: PART 3 STEP 4b
-
-	float nearPlane = 0.1, farPlane = 100, fieldOfView = 30, AspectRatio = BACKBUFFER_HEIGHT / BACKBUFFER_WIDTH;
+	// CAMERA SETUP
+	float nearPlane = 0.1f, farPlane = 100, fieldOfView = 30, AspectRatio = BACKBUFFER_HEIGHT / BACKBUFFER_WIDTH;
 	projectionMatrix = XMMatrixPerspectiveFovLH(fieldOfView, AspectRatio, nearPlane, farPlane);
-	worldMatrix = XMMatrixTranslation(0, 0, 5) * worldMatrix;
-
-	ground.worldMatrix = worldMatrix;
-	obj.worldMatrix = worldMatrix;
-	XMMATRIX PyWo = XMLoadFloat4x4(&pyramid.worldMatrix);
-	PyWo = XMMatrixTranslation(0, -1, 5) * PyWo;
-	XMStoreFloat4x4(&pyramid.worldMatrix, PyWo);
 	camera.projectionMatrix = projectionMatrix;
 	camera.viewMatrix = viewMatrix;
+	
+	// WORLD MATRICIES SETUP
+	obj.worldMatrix = XMMatrixIdentity();
+	obj.worldMatrix = XMMatrixTranslation(0, 2, 5) * obj.worldMatrix;
+
+	ground.worldMatrix = XMMatrixIdentity();
+
+	XMMATRIX PyWo = XMLoadFloat4x4(&pyramid.worldMatrix);
+	PyWo = XMMatrixTranslation(0, 0, 5) * PyWo;
+	XMStoreFloat4x4(&pyramid.worldMatrix, PyWo);
 }
 
 //************************************************************
@@ -491,135 +236,82 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 bool DEMO_APP::Run()
 {
-	// TODO: PART 4 STEP 2
+	// OBJ ROTATION
 	time.Signal();
-	obj.worldMatrix = XMMatrixRotationY(time.Delta()) * obj.worldMatrix;
+	obj.worldMatrix = XMMatrixRotationY((float)time.Delta()) * obj.worldMatrix;
 
-	if (GetAsyncKeyState('W'))
-		zMove += 2 * time.Delta();
-	else if (GetAsyncKeyState('S'))
-		zMove -= 2 * time.Delta();
-	if (GetAsyncKeyState('Q'))
-		yMove -= 2 * time.Delta();
-	else if (GetAsyncKeyState('E'))
-		yMove += 2 * time.Delta();
-	if (GetAsyncKeyState('A'))
-		xMove -= 2 * time.Delta();
-	else if (GetAsyncKeyState('D'))
-		xMove += 2 * time.Delta();
+	// CAMERA MOVEMENT
+	CameraMovement(camera, time, xMove, yMove, zMove);
 
-	POINT mouse;
-	LPPOINT LPM = &mouse;
-	GetCursorPos(LPM);
-	float camRotSpd = .005;
-
-	XMMATRIX cam = XMMatrixIdentity();
-	XMMATRIX trans;
-	
-	cam = cam * XMMatrixRotationY(mouse.x * camRotSpd);
-	cam = XMMatrixRotationX(mouse.y * camRotSpd) * cam;
-
-	trans = XMMatrixTranslation((float)xMove, (float)yMove, (float)zMove);
-
-	cam.r[3] = trans.r[3];
-
-	camera.viewMatrix = XMMatrixInverse(nullptr, cam);
-
-	//////
-
+	// VIEW SETUP
 	dContext->OMSetRenderTargets(1, &rTView, stenView);
-
-	// TODO: PART 1 STEP 7b
-
 	dContext->RSSetViewports(1, &vPort);
 
-	// TODO: PART 1 STEP 7c
+	dContext->Map(cBufferView, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
+	memcpy(map.pData, &camera, sizeof(camera));
+	dContext->Unmap(cBufferView, 0);
 
+	dContext->RSSetState(rasState);
+	dContext->VSSetConstantBuffers(1, 1, &cBufferView);
+
+	// SCREEN CLEAR
 	float color[4];
 	color[2] = 1;
 	dContext->ClearRenderTargetView(rTView, color);
 	dContext->ClearDepthStencilView(stenView, D3D11_CLEAR_DEPTH, 1, 0);
 
-	// TODO: PART 3 STEP 5
-
-	D3D11_MAPPED_SUBRESOURCE map;
-
-	dContext->Map(groundCBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
-	//((SEND_TO_VRAM*)map.pData)->constantColor[0] = toShader.constantColor[0];
-	memcpy(map.pData, &ground, sizeof(ground));
-	dContext->Unmap(groundCBuffer, 0);
-
-	dContext->Map(cBufferView, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
-	//((SEND_TO_VRAM*)map.pData)->constantColor[0] = toShader.constantColor[0];
-	memcpy(map.pData, &camera, sizeof(camera));
-	dContext->Unmap(cBufferView, 0);
-
-	// TODO: PART 3 STEP 6
-	dContext->VSSetConstantBuffers(0, 1, &groundCBuffer);
-	dContext->VSSetConstantBuffers(1, 1, &cBufferView);
-	dContext->RSSetState(rasStateThree);
-	//set pixel shader
-
-	// TODO: PART 2 STEP 9a
-
+	// DRAW CREATED OBJS
 	unsigned int stride = sizeof(SIMPLE_VERTEX), offSet = 0;
-	dContext->IASetVertexBuffers(0, 1, &groundVBuffer, &stride, &offSet);
-	dContext->IASetIndexBuffer(iBuffer, DXGI_FORMAT_R32_UINT, offSet);
-
-	// TODO: PART 2 STEP 9b
-
+	dContext->IASetInputLayout(ILayoutCOLOR);
+	dContext->VSSetConstantBuffers(0, 1, &objCBuffer);
 	dContext->VSSetShader(VShaderCOLOR, NULL, 0);
 	dContext->PSSetShader(PShaderCOLOR, NULL, 0);
 
-	// TODO: PART 2 STEP 9c
+	// GROUND
+	dContext->IASetIndexBuffer(groundIBuffer, DXGI_FORMAT_R32_UINT, offSet);
+	dContext->Map(objCBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
+	memcpy(map.pData, &ground, sizeof(ground));
+	dContext->Unmap(objCBuffer, 0);
 
-	dContext->IASetInputLayout(ILayoutCOLOR);
+	dContext->IASetVertexBuffers(0, 1, &groundVBuffer, &stride, &offSet);
+	dContext->IASetIndexBuffer(groundIBuffer, DXGI_FORMAT_R32_UINT, offSet);
 
-	// TODO: PART 2 STEP 9d
+	dContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	dContext->DrawIndexed(6, 0, 0);
 
-	dContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
-
-	// TODO: PART 2 STEP 10
-
-	dContext->Draw(groundVCount, 0);
-
+	// STAR
+	dContext->IASetIndexBuffer(starIBuffer, DXGI_FORMAT_R32_UINT, offSet);
 	dContext->Map(objCBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
 	memcpy(map.pData, &obj, sizeof(obj));
 	dContext->Unmap(objCBuffer, 0);
 
-	dContext->VSSetConstantBuffers(0, 1, &objCBuffer);
-	dContext->IASetVertexBuffers(0, 1, &oBjVBuffer, &stride, &offSet);
+	dContext->IASetVertexBuffers(0, 1, &starVBuffer, &stride, &offSet);
+	dContext->IASetIndexBuffer(starIBuffer, DXGI_FORMAT_R32_UINT, offSet);
 
 	dContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	dContext->DrawIndexed(numIn, 0, 0);
 
-
-	//PYRAMID
-
-	dContext->IASetIndexBuffer(pyramid.IBuffer, DXGI_FORMAT_R32_UINT, offSet);
-	dContext->Map(pyramid.CBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
-	memcpy(map.pData, &pyramid.worldMatrix, sizeof(pyramid.worldMatrix));
-	dContext->Unmap(pyramid.CBuffer, 0);
-
-	stride = sizeof(OBJ_TO_VRAM);
-	dContext->VSSetConstantBuffers(0, 1, &pyramid.CBuffer);
-	dContext->IASetVertexBuffers(0, 1, &pyramid.VBuffer, &stride, &offSet);
-
+	// DRAW LOADED OBJS
+	stride = sizeof(OBJ_TO_VRAM), offSet = 0;
+	dContext->IASetInputLayout(ILayoutUV);
+	dContext->VSSetConstantBuffers(0, 1, &loadCBuffer);
 	dContext->VSSetShader(VShaderUV, NULL, 0);
 	dContext->PSSetShader(PShaderUV, NULL, 0);
 
-	// TODO: PART 2 STEP 9c
+	// PYRAMID
+	dContext->IASetIndexBuffer(pyramid.IBuffer, DXGI_FORMAT_R32_UINT, offSet);
+	dContext->Map(loadCBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
+	memcpy(map.pData, &pyramid.worldMatrix, sizeof(pyramid.worldMatrix));
+	dContext->Unmap(loadCBuffer, 0);
 
-	dContext->IASetInputLayout(ILayoutUV);
+	dContext->IASetVertexBuffers(0, 1, &pyramid.VBuffer, &stride, &offSet);
 
 	dContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	dContext->DrawIndexed(pyramid.indexCount, 0, 0);
 
-	// END PART 2
-
-	// TODO: PART 1 STEP 8
+	// TO FRONT BUFFER
 	swapChain->Present(0, 0);
-	// END OF PART 1
+
 	return true;
 }
 
@@ -629,8 +321,6 @@ bool DEMO_APP::Run()
 
 bool DEMO_APP::ShutDown()
 {
-	// TODO: PART 1 STEP 6
-
 	dContext->ClearState();
 
 	UnregisterClass(L"DirectXApplication", application);
