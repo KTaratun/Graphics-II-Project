@@ -38,6 +38,7 @@ class DEMO_APP
 	ID3D11Buffer *objCBuffer;
 	ID3D11Buffer *loadCBuffer;
 	ID3D11Buffer *cBufferView;
+	ID3D11Buffer *cBufferDirectional;
 
 	ID3D11InputLayout *ILayoutCOLOR;
 	ID3D11InputLayout *ILayoutUV;
@@ -213,6 +214,16 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	device->CreateBuffer(&vRDView, nullptr, &cBufferView);
 
+	D3D11_BUFFER_DESC vRDDIRECTIONAL;
+	vRDView.Usage = D3D11_USAGE_DYNAMIC;
+	vRDView.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	vRDView.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	vRDView.ByteWidth = sizeof(DIRECTIONAL_LIGHT);
+	vRDView.StructureByteStride = sizeof(float);
+	vRDView.MiscFlags = 0;
+
+	device->CreateBuffer(&vRDView, nullptr, &cBufferDirectional);
+
 	// CAMERA SETUP
 	float nearPlane = 0.1f, farPlane = 100, fieldOfView = 30, AspectRatio = BACKBUFFER_HEIGHT / BACKBUFFER_WIDTH;
 	projectionMatrix = XMMatrixPerspectiveFovLH(fieldOfView, AspectRatio, nearPlane, farPlane);
@@ -224,6 +235,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	obj.worldMatrix = XMMatrixTranslation(0, 2, 5) * obj.worldMatrix;
 
 	ground.worldMatrix = XMMatrixIdentity();
+	ground.worldMatrix = XMMatrixTranslation(0, -1, 5) * ground.worldMatrix;
 
 	XMMATRIX PyWo = XMLoadFloat4x4(&pyramid.worldMatrix);
 	PyWo = XMMatrixTranslation(0, 0, 5) * PyWo;
@@ -260,24 +272,12 @@ bool DEMO_APP::Run()
 	dContext->ClearRenderTargetView(rTView, color);
 	dContext->ClearDepthStencilView(stenView, D3D11_CLEAR_DEPTH, 1, 0);
 
-	// DRAW CREATED OBJS
+	// COLORED OBJS
 	unsigned int stride = sizeof(SIMPLE_VERTEX), offSet = 0;
 	dContext->IASetInputLayout(ILayoutCOLOR);
 	dContext->VSSetConstantBuffers(0, 1, &objCBuffer);
 	dContext->VSSetShader(VShaderCOLOR, NULL, 0);
 	dContext->PSSetShader(PShaderCOLOR, NULL, 0);
-
-	// GROUND
-	dContext->IASetIndexBuffer(groundIBuffer, DXGI_FORMAT_R32_UINT, offSet);
-	dContext->Map(objCBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
-	memcpy(map.pData, &ground, sizeof(ground));
-	dContext->Unmap(objCBuffer, 0);
-
-	dContext->IASetVertexBuffers(0, 1, &groundVBuffer, &stride, &offSet);
-	dContext->IASetIndexBuffer(groundIBuffer, DXGI_FORMAT_R32_UINT, offSet);
-
-	dContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	dContext->DrawIndexed(6, 0, 0);
 
 	// STAR
 	dContext->IASetIndexBuffer(starIBuffer, DXGI_FORMAT_R32_UINT, offSet);
@@ -291,12 +291,25 @@ bool DEMO_APP::Run()
 	dContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	dContext->DrawIndexed(numIn, 0, 0);
 
-	// DRAW LOADED OBJS
+	// TEXTURED OBJS
 	stride = sizeof(OBJ_TO_VRAM), offSet = 0;
 	dContext->IASetInputLayout(ILayoutUV);
 	dContext->VSSetConstantBuffers(0, 1, &loadCBuffer);
 	dContext->VSSetShader(VShaderUV, NULL, 0);
 	dContext->PSSetShader(PShaderUV, NULL, 0);
+	//dContext->CSSetSamplers 
+
+	// GROUND
+	dContext->IASetIndexBuffer(groundIBuffer, DXGI_FORMAT_R32_UINT, offSet);
+	dContext->Map(loadCBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
+	memcpy(map.pData, &ground, sizeof(ground));
+	dContext->Unmap(loadCBuffer, 0);
+
+	dContext->IASetVertexBuffers(0, 1, &groundVBuffer, &stride, &offSet);
+	dContext->IASetIndexBuffer(groundIBuffer, DXGI_FORMAT_R32_UINT, offSet);
+
+	dContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	dContext->DrawIndexed(6, 0, 0);
 
 	// PYRAMID
 	dContext->IASetIndexBuffer(pyramid.IBuffer, DXGI_FORMAT_R32_UINT, offSet);
@@ -305,6 +318,7 @@ bool DEMO_APP::Run()
 	dContext->Unmap(loadCBuffer, 0);
 
 	dContext->IASetVertexBuffers(0, 1, &pyramid.VBuffer, &stride, &offSet);
+	dContext->PSSetShaderResources(0, 1, &pyramid.SRView);
 
 	dContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	dContext->DrawIndexed(pyramid.indexCount, 0, 0);

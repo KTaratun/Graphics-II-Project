@@ -164,26 +164,34 @@ void CreateStar(unsigned int* inBuffer, ID3D11Device** device, ID3D11Buffer** st
 
 void CreateGround(unsigned int* inBuffer, ID3D11Device** device, ID3D11Buffer **groundVBuffer, ID3D11Buffer **groundIBuffer)
 {
-	SIMPLE_VERTEX *Verts = new SIMPLE_VERTEX[4];
+	OBJ_TO_VRAM *Verts = new OBJ_TO_VRAM[4];
 
 	Verts[0].xyz.x = -5;
 	Verts[0].xyz.y = 0;
 	Verts[0].xyz.z = 5;
+	Verts[0].uvs.x = 0;
+	Verts[0].uvs.y = 1;
 	Verts[1].xyz.x = 5;
 	Verts[1].xyz.y = 0;
 	Verts[1].xyz.z = 5;
+	Verts[1].uvs.x = 1;
+	Verts[1].uvs.y = 1;
 	Verts[2].xyz.x = -5;
 	Verts[2].xyz.y = 0;
 	Verts[2].xyz.z = -5;
+	Verts[2].uvs.x = 1;
+	Verts[2].uvs.y = 0;
 	Verts[3].xyz.x = 5;
 	Verts[3].xyz.y = 0;
 	Verts[3].xyz.z = -5;
+	Verts[3].uvs.x = 0;
+	Verts[3].uvs.y = 0;
 
 	CD3D11_BUFFER_DESC groundVBDes;
 	groundVBDes.Usage = D3D11_USAGE_IMMUTABLE;
 	groundVBDes.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	groundVBDes.CPUAccessFlags = NULL;
-	groundVBDes.ByteWidth = sizeof(SIMPLE_VERTEX) * 4;
+	groundVBDes.ByteWidth = sizeof(OBJ_TO_VRAM) * 4;
 	groundVBDes.MiscFlags = 0;
 
 	D3D11_SUBRESOURCE_DATA groundInitData;
@@ -198,9 +206,9 @@ void CreateGround(unsigned int* inBuffer, ID3D11Device** device, ID3D11Buffer **
 	inBuffer[0] = 0;
 	inBuffer[1] = 1;
 	inBuffer[2] = 2;
-	inBuffer[3] = 1;
-	inBuffer[4] = 3;
-	inBuffer[5] = 2;
+	inBuffer[3] = 2;
+	inBuffer[4] = 1;
+	inBuffer[5] = 3;
 
 	D3D11_SUBRESOURCE_DATA IndexData;
 	IndexData.pSysMem = inBuffer;
@@ -214,6 +222,10 @@ void CreateGround(unsigned int* inBuffer, ID3D11Device** device, ID3D11Buffer **
 	vRDIndex.ByteWidth = sizeof(unsigned int) * 6;
 	vRDIndex.StructureByteStride = sizeof(unsigned int);
 	vRDIndex.MiscFlags = 0;
+
+	ID3D11ShaderResourceView *SRView;
+
+	CreateDDSTextureFromFile((*device), L"GXIIfloor.dds", NULL, &SRView);
 
 	(*device)->CreateBuffer(&vRDIndex, &IndexData, groundIBuffer);
 }
@@ -296,7 +308,7 @@ void CreateDepthBuffer(ID3D11Device** device, ID3D11DeviceContext** dContext, ID
 	// CREATE RASTERIZER STATE
 	D3D11_RASTERIZER_DESC rasD;
 	rasD.FillMode = D3D11_FILL_SOLID;
-	rasD.CullMode = D3D11_CULL_FRONT;
+	//rasD.CullMode = D3D11_CULL_FRONT;
 	rasD.AntialiasedLineEnable = true;
 
 	(*device)->CreateRasterizerState(&rasD, rasState);

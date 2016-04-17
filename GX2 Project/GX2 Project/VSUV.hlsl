@@ -37,13 +37,7 @@ OUTPUT_VERTEX main(INPUT_VERTEX fromVertexBuffer)
 
 	sendToRasterizer.projectedCoordinate = localH;
 
-	// TODO : PART 4 STEP 4
-	/*sendToRasterizer.projectedCoordinate.xy += constantOffset;*/
-
-	// TODO : PART 3 STEP 7
 	sendToRasterizer.uvOut = fromVertexBuffer.uvs;
-	// END PART 3
 
-	// TODO: Move into view space, then projection space
 	return sendToRasterizer;
 }

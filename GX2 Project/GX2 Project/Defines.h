@@ -33,5 +33,10 @@ struct SCENE_TO_VRAM
 	XMMATRIX viewMatrix, projectionMatrix;
 };
 
+struct DIRECTIONAL_LIGHT
+{
+	XMFLOAT4 direct, color;
+};
+
 void CameraMovement(SCENE_TO_VRAM &camera, XTime &time, double &xMove,
 	double &yMove, double &zMove);
