@@ -80,6 +80,7 @@
   <ItemGroup>
     <ClInclude Include="DDSTextureLoader.h" />
     <ClInclude Include="Defines.h" />
+    <ClInclude Include="Lights.h" />
     <ClInclude Include="LoadOBJ.h" />
     <ClInclude Include="SharedDefines.h" />
     <ClInclude Include="teapot.h" />
@@ -88,6 +89,7 @@
   <ItemGroup>
     <ClCompile Include="DDSTextureLoader.cpp" />
     <ClCompile Include="Defines.cpp" />
+    <ClCompile Include="Lights.cpp" />
     <ClCompile Include="LoadOBJ.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="XTime.cpp" />

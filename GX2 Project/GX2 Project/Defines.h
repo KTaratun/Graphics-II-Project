@@ -1,8 +1,7 @@
 #pragma once
 
 #include "SharedDefines.h"
-#include "XTime.h"
-#include "LoadOBJ.h"
+#include "Lights.h"
 //#include <atlbase.h>
 //CComPtr<int> kss;
 
@@ -31,11 +30,6 @@ struct OBJECT_TO_VRAM
 struct SCENE_TO_VRAM
 {
 	XMMATRIX viewMatrix, projectionMatrix;
-};
-
-struct DIRECTIONAL_LIGHT
-{
-	XMFLOAT4 direct, color;
 };
 
 void CameraMovement(SCENE_TO_VRAM &camera, XTime &time, double &xMove,

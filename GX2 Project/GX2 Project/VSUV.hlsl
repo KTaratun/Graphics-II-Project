@@ -11,6 +11,8 @@ struct OUTPUT_VERTEX
 {
 	float2 uvOut : UVS;
 	float4 projectedCoordinate : SV_POSITION;
+	float3 normals : NORMALS;
+	float3 world : WORLD;
 };
 
 cbuffer OBJECT : register(b0)
@@ -30,14 +32,19 @@ OUTPUT_VERTEX main(INPUT_VERTEX fromVertexBuffer)
 
 	// ensures translation is preserved during matrix multiply  
 	float4 localH = float4(fromVertexBuffer.coordinate, 1);
-	// move local space vertex from vertex buffer into world space.
+		// move local space vertex from vertex buffer into world space.
+
 	localH = mul(localH, worldMatrix);
+	float3 worldPos = localH;
 	localH = mul(localH, viewMatrix);
 	localH = mul(localH, projectionMatrix);
 
+	sendToRasterizer.world = worldPos;
 	sendToRasterizer.projectedCoordinate = localH;
 
 	sendToRasterizer.uvOut = fromVertexBuffer.uvs;
+
+	sendToRasterizer.normals = mul(fromVertexBuffer.nrm, (float3x3)worldMatrix);
 
 	return sendToRasterizer;
 }

@@ -39,6 +39,8 @@ class DEMO_APP
 	ID3D11Buffer *loadCBuffer;
 	ID3D11Buffer *cBufferView;
 	ID3D11Buffer *cBufferDirectional;
+	ID3D11Buffer *cBufferPoint;
+	ID3D11Buffer *cBufferSpot;
 
 	ID3D11InputLayout *ILayoutCOLOR;
 	ID3D11InputLayout *ILayoutUV;
@@ -59,6 +61,9 @@ class DEMO_APP
 
 public:
 	
+	DIRECTIONAL_LIGHT dL;
+	POINT_LIGHT pL;
+	SPOT_LIGHT sL;
 	OBJ_STRUCT pyramid;
 	OBJECT_TO_VRAM obj;
 	OBJECT_TO_VRAM ground;
@@ -70,6 +75,9 @@ public:
 	double xMove = 0;
 	double yMove = 0;
 	double zMove = 0;
+	double xMovePL = 0;
+	double yMovePL = 0;
+	double zMovePL = 0;
 
 	DEMO_APP(HINSTANCE hinst, WNDPROC proc);
 	bool Run();
@@ -176,7 +184,8 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	{
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		{ "UVS", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "NORMALS", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }
+		{ "NORMALS", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "WORLD", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }
 	};
 
 	// LAYOUT CREATION
@@ -214,31 +223,63 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	device->CreateBuffer(&vRDView, nullptr, &cBufferView);
 
-	D3D11_BUFFER_DESC vRDDIRECTIONAL;
-	vRDView.Usage = D3D11_USAGE_DYNAMIC;
-	vRDView.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	vRDView.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-	vRDView.ByteWidth = sizeof(DIRECTIONAL_LIGHT);
-	vRDView.StructureByteStride = sizeof(float);
-	vRDView.MiscFlags = 0;
+	D3D11_BUFFER_DESC vRDDIRECTION;
+	vRDDIRECTION.Usage = D3D11_USAGE_DYNAMIC;
+	vRDDIRECTION.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	vRDDIRECTION.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	vRDDIRECTION.ByteWidth = sizeof(DIRECTIONAL_LIGHT);
+	vRDDIRECTION.StructureByteStride = sizeof(float);
+	vRDDIRECTION.MiscFlags = 0;
 
-	device->CreateBuffer(&vRDView, nullptr, &cBufferDirectional);
+	device->CreateBuffer(&vRDDIRECTION, nullptr, &cBufferDirectional);
+
+	D3D11_BUFFER_DESC vRDPOINT;
+	vRDPOINT.Usage = D3D11_USAGE_DYNAMIC;
+	vRDPOINT.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	vRDPOINT.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	vRDPOINT.ByteWidth = sizeof(POINT_LIGHT);
+	vRDPOINT.StructureByteStride = sizeof(float);
+	vRDPOINT.MiscFlags = 0;
+
+	device->CreateBuffer(&vRDPOINT, nullptr, &cBufferPoint);
+
+	D3D11_BUFFER_DESC vRDSPOT;
+	vRDSPOT.Usage = D3D11_USAGE_DYNAMIC;
+	vRDSPOT.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	vRDSPOT.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	vRDSPOT.ByteWidth = sizeof(POINT_LIGHT);
+	vRDSPOT.StructureByteStride = sizeof(float);
+	vRDSPOT.MiscFlags = 0;
+
+	device->CreateBuffer(&vRDSPOT, nullptr, &cBufferSpot);
 
 	// CAMERA SETUP
 	float nearPlane = 0.1f, farPlane = 100, fieldOfView = 30, AspectRatio = BACKBUFFER_HEIGHT / BACKBUFFER_WIDTH;
 	projectionMatrix = XMMatrixPerspectiveFovLH(fieldOfView, AspectRatio, nearPlane, farPlane);
 	camera.projectionMatrix = projectionMatrix;
 	camera.viewMatrix = viewMatrix;
+
+	// LIGHT SETUP
+	dL.color = float4(1, 1, 1, 1);
+	dL.direct = float4(0, 0, 1, 0);
+
+	pL.color = float4(1, 1, 1, 1);
+	pL.pos = float4(0, 1, 1, 0);
+
+	sL.color = float4(1, 1, 1, 1);
+	sL.pos = float4(0, 1, 1, 0);
+	sL.conDirect = float4(1, 1, 1, 1);
 	
 	// WORLD MATRICIES SETUP
 	obj.worldMatrix = XMMatrixIdentity();
-	obj.worldMatrix = XMMatrixTranslation(0, 2, 5) * obj.worldMatrix;
+	obj.worldMatrix = XMMatrixTranslation(pL.pos.x, pL.pos.y, pL.pos.z) * obj.worldMatrix;
 
 	ground.worldMatrix = XMMatrixIdentity();
 	ground.worldMatrix = XMMatrixTranslation(0, -1, 5) * ground.worldMatrix;
 
 	XMMATRIX PyWo = XMLoadFloat4x4(&pyramid.worldMatrix);
 	PyWo = XMMatrixTranslation(0, 0, 5) * PyWo;
+	PyWo = XMMatrixScaling(2, 2, 2) * PyWo;
 	XMStoreFloat4x4(&pyramid.worldMatrix, PyWo);
 }
 
@@ -250,12 +291,16 @@ bool DEMO_APP::Run()
 {
 	// OBJ ROTATION
 	time.Signal();
-	obj.worldMatrix = XMMatrixRotationY((float)time.Delta()) * obj.worldMatrix;
+	XMMATRIX PyWo = XMLoadFloat4x4(&pyramid.worldMatrix);
+	PyWo = XMMatrixRotationY((float)time.Delta()) * PyWo;
+	XMStoreFloat4x4(&pyramid.worldMatrix, PyWo);
 
-	// CAMERA MOVEMENT
+	// MOVEMENT
 	CameraMovement(camera, time, xMove, yMove, zMove);
+	PointLightMovement(pL, time, xMovePL, yMovePL, zMovePL, obj.worldMatrix);
 
 	// VIEW SETUP
+	dContext->VSSetConstantBuffers(1, 1, &cBufferView);
 	dContext->OMSetRenderTargets(1, &rTView, stenView);
 	dContext->RSSetViewports(1, &vPort);
 
@@ -264,7 +309,22 @@ bool DEMO_APP::Run()
 	dContext->Unmap(cBufferView, 0);
 
 	dContext->RSSetState(rasState);
-	dContext->VSSetConstantBuffers(1, 1, &cBufferView);
+
+	// LIGHTS
+	dContext->PSSetConstantBuffers(0, 1, &cBufferDirectional);
+	dContext->Map(cBufferDirectional, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
+	memcpy(map.pData, &dL, sizeof(dL));
+	dContext->Unmap(cBufferDirectional, 0);
+
+	dContext->PSSetConstantBuffers(1, 1, &cBufferPoint);
+	dContext->Map(cBufferPoint, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
+	memcpy(map.pData, &pL, sizeof(pL));
+	dContext->Unmap(cBufferPoint, 0);
+
+	dContext->PSSetConstantBuffers(2, 1, &cBufferSpot);
+	dContext->Map(cBufferSpot, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
+	memcpy(map.pData, &sL, sizeof(sL));
+	dContext->Unmap(cBufferSpot, 0);
 
 	// SCREEN CLEAR
 	float color[4];
@@ -297,7 +357,8 @@ bool DEMO_APP::Run()
 	dContext->VSSetConstantBuffers(0, 1, &loadCBuffer);
 	dContext->VSSetShader(VShaderUV, NULL, 0);
 	dContext->PSSetShader(PShaderUV, NULL, 0);
-	//dContext->CSSetSamplers 
+	//ID3D11SamplerState *sState;
+	//dContext->PSSetSamplers(0, 1, &sState);
 
 	// GROUND
 	dContext->IASetIndexBuffer(groundIBuffer, DXGI_FORMAT_R32_UINT, offSet);
