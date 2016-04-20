@@ -34,3 +34,29 @@ void PointLightMovement(POINT_LIGHT &pl, XTime &time, double &xMove,
 	obj = trans;
 	pl.pos = XMFLOAT4(trans.r[3].m128_f32[0], trans.r[3].m128_f32[1], trans.r[3].m128_f32[2], 0);
 }
+
+void SpotLightMovement(SPOT_LIGHT &sl, XTime &time, double &xMove,
+	double &yMove, double &zMove)
+{
+	//if (GetAsyncKeyState('I'))
+	//	zMove += 2 * time.Delta();
+	//else if (GetAsyncKeyState('K'))
+	//	zMove -= 2 * time.Delta();
+	//if (GetAsyncKeyState('U'))
+	//	yMove -= 2 * time.Delta();
+	//else if (GetAsyncKeyState('O'))
+	//	yMove += 2 * time.Delta();
+	if (GetAsyncKeyState('T'))
+		xMove -= 2 * time.Delta();
+	else if (GetAsyncKeyState('Y'))
+		xMove += 2 * time.Delta();
+
+	if (GetAsyncKeyState('G'))
+		yMove -= 2 * time.Delta();
+	else if (GetAsyncKeyState('H'))
+		yMove += 2 * time.Delta();
+
+	sl.conDirect.x = yMove;
+	XMMATRIX trans = XMMatrixTranslation((float)xMove, 0, 0);
+	sl.pos.x = trans.r[3].m128_f32[0];
+}

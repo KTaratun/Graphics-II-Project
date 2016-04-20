@@ -38,26 +38,26 @@ float4 main(colorFromRasterizer input) : SV_TARGET
 	float lightRatioDL = saturate(dot(-directionDL, input.normals));
 	if (lightRatioDL < .2)
 		lightRatioDL = .2;
-	float dResult = lightRatioDL * colorDL * textureColor;
+	float4 dResult = lightRatioDL * colorDL * textureColor;
 
 	// POINT
 	// do an if check with a bool
-	float3 LightDirectPL = normalize(positionPL - input.world);
+	float4 LightDirectPL = normalize(positionPL - float4(input.world, 1));
 	float lightRatioPL = saturate(dot(LightDirectPL, input.normals));
 	if (lightRatioPL < .2)
 		lightRatioPL = .2;
-	float3 attenuation = 1.0 - saturate(length(positionPL - input.world) / 5);
-	float pResult = lightRatioPL * attenuation * colorPL * textureColor;
+	float attenuation = 1.0 - saturate(length(positionPL - input.world) / 5);
+	float4 pResult = lightRatioPL * attenuation * colorPL * textureColor;
 
 	// SPOT
 	// do an if check with a bool
-	//float3 LightDirectSL = normalize(positionSL - input.world);
-	//float SurfaceRatio = saturate(dot(-LightDirectSL, conDirectSL));
-	//float SpotFactor = (SurfaceRatio >)?1:0;
-	//float lightRatioSL = saturate(dot(LightDirectSL, input.normals));
-	//float sResult = SpotFactor * lightRatioSL * colorSL * textureColor;
+	float4 LightDirectSL = normalize(positionSL - float4(input.world, 1));
+	float SurfaceRatio = saturate(dot(-LightDirectSL, conDirectSL));
+	float SpotFactor = (SurfaceRatio > 0.8) ? 1 : 0;
+	float lightRatioSL = saturate(dot(LightDirectSL, input.normals));
+	//float attenuation = 1.0 - saturate(length(positionSL - input.world) / 5);
+	//float attenuation = 1.0 - saturate(length(coneRatioINNER - surfaceRatio) / INNERCONE - CONERATIO);
+	float4 sResult = SpotFactor * lightRatioSL * colorSL * textureColor;
 
-
-	//saturate(dResult + pResult)
-	return pResult;
+	return saturate(dResult + pResult + sResult);
 }

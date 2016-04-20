@@ -72,12 +72,16 @@ public:
 	unsigned int inBuffer[60];
 	unsigned int groundInBuffer[4];
 
+	bool flipped = false;
 	double xMove = 0;
 	double yMove = 0;
 	double zMove = 0;
 	double xMovePL = 0;
 	double yMovePL = 0;
 	double zMovePL = 0;
+	double xMoveSL = 0;
+	double yMoveSL = 0;
+	double zMoveSL = 0;
 
 	DEMO_APP(HINSTANCE hinst, WNDPROC proc);
 	bool Run();
@@ -184,8 +188,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	{
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		{ "UVS", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "NORMALS", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "WORLD", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }
+		{ "NORMALS", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }
 	};
 
 	// LAYOUT CREATION
@@ -247,7 +250,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	vRDSPOT.Usage = D3D11_USAGE_DYNAMIC;
 	vRDSPOT.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	vRDSPOT.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-	vRDSPOT.ByteWidth = sizeof(POINT_LIGHT);
+	vRDSPOT.ByteWidth = sizeof(SPOT_LIGHT);
 	vRDSPOT.StructureByteStride = sizeof(float);
 	vRDSPOT.MiscFlags = 0;
 
@@ -261,14 +264,14 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	// LIGHT SETUP
 	dL.color = float4(1, 1, 1, 1);
-	dL.direct = float4(0, 0, 1, 0);
+	dL.direct = float4(1, -2, 0, 0);
 
-	pL.color = float4(1, 1, 1, 1);
+	pL.color = float4(1, 0, 0, 1);
 	pL.pos = float4(0, 1, 1, 0);
 
-	sL.color = float4(1, 1, 1, 1);
-	sL.pos = float4(0, 1, 1, 0);
-	sL.conDirect = float4(1, 1, 1, 1);
+	sL.color = float4(0, 0, 1, 1);
+	sL.pos = float4(0, 2, 5, 0);
+	sL.conDirect = float4(0, -1, 0, 0);
 	
 	// WORLD MATRICIES SETUP
 	obj.worldMatrix = XMMatrixIdentity();
@@ -295,9 +298,15 @@ bool DEMO_APP::Run()
 	PyWo = XMMatrixRotationY((float)time.Delta()) * PyWo;
 	XMStoreFloat4x4(&pyramid.worldMatrix, PyWo);
 
+	//if (!flipped && dL.direct.x < 20)
+		dL.direct.x -= time.Delta() *.2;
+	//else if (flipped && dL.direct.x > -20)
+	//	dL.direct.x += time.Delta() * 20;
+
 	// MOVEMENT
 	CameraMovement(camera, time, xMove, yMove, zMove);
 	PointLightMovement(pL, time, xMovePL, yMovePL, zMovePL, obj.worldMatrix);
+	SpotLightMovement(sL, time, xMoveSL, yMoveSL, zMoveSL);
 
 	// VIEW SETUP
 	dContext->VSSetConstantBuffers(1, 1, &cBufferView);

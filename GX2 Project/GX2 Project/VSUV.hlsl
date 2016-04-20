@@ -44,7 +44,7 @@ OUTPUT_VERTEX main(INPUT_VERTEX fromVertexBuffer)
 
 	sendToRasterizer.uvOut = fromVertexBuffer.uvs;
 
-	sendToRasterizer.normals = mul(fromVertexBuffer.nrm, (float3x3)worldMatrix);
+	sendToRasterizer.normals = mul(float4(fromVertexBuffer.nrm, 0), (float3x3)worldMatrix);
 
 	return sendToRasterizer;
 }

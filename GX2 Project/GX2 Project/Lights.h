@@ -22,8 +22,11 @@ struct SPOT_LIGHT
 
 void CreateDirectionalLight(ID3D11Device** device);
 
-void PointLightMovement(POINT_LIGHT &camera, XTime &time, double &xMove,
+void PointLightMovement(POINT_LIGHT &pl, XTime &time, double &xMove,
 	double &yMove, double &zMove, XMMATRIX& obj);
+
+void SpotLightMovement(SPOT_LIGHT &sl, XTime &time, double &xMove,
+	double &yMove, double &zMove);
 
 //struct DL_TO_VRAM
 //{
