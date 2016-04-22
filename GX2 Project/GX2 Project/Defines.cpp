@@ -162,7 +162,8 @@ void CreateStar(unsigned int* inBuffer, ID3D11Device** device, ID3D11Buffer** st
 //	}
 //}
 
-void CreateGround(unsigned int* inBuffer, ID3D11Device** device, ID3D11Buffer **groundVBuffer, ID3D11Buffer **groundIBuffer)
+void CreateGround(unsigned int* inBuffer, ID3D11Device** device, ID3D11Buffer **groundVBuffer, 
+	ID3D11Buffer **groundIBuffer, ID3D11ShaderResourceView **groundSRView)
 {
 	OBJ_TO_VRAM *Verts = new OBJ_TO_VRAM[4];
 
@@ -215,9 +216,7 @@ void CreateGround(unsigned int* inBuffer, ID3D11Device** device, ID3D11Buffer **
 	vRDIndex.StructureByteStride = sizeof(unsigned int);
 	vRDIndex.MiscFlags = 0;
 
-	ID3D11ShaderResourceView *SRView;
-
-	CreateDDSTextureFromFile((*device), L"GXIIfloor.dds", NULL, &SRView);
+	CreateDDSTextureFromFile((*device), L"GXIIfloor.dds", NULL, groundSRView);
 
 	(*device)->CreateBuffer(&vRDIndex, &IndexData, groundIBuffer);
 }
@@ -339,3 +338,64 @@ double &yMove, double &zMove)
 
 	camera.viewMatrix = XMMatrixInverse(nullptr, cam);
 }
+
+//void CameraMovement(SCENE_TO_VRAM &camera, SCENE_TO_VRAM &cameraTwo, XTime &time,
+//	double &xMove, double &yMove, double &zMove,
+//	double &xMoveTwo, double &yMoveTwo, double &zMoveTwo, bool &camOne)
+//{
+//	double moveX, moveY, moveZ;
+//
+//	if (GetAsyncKeyState('X'))
+//	{
+//		if (camOne)
+//			camOne = false;
+//		else if (!camOne)
+//			camOne = true;
+//	}
+//
+//	if (camOne)
+//	{
+//		moveX = xMove;
+//		moveY = yMove;
+//		moveZ = zMove;
+//	}
+//	else
+//	{
+//		moveX = xMoveTwo;
+//		moveY = yMoveTwo;
+//		moveZ = zMoveTwo;
+//	}
+//
+//	if (GetAsyncKeyState('W'))
+//		moveZ += 2 * time.Delta();
+//	else if (GetAsyncKeyState('S'))
+//		moveZ -= 2 * time.Delta();
+//	if (GetAsyncKeyState('Q'))
+//		moveY -= 2 * time.Delta();
+//	else if (GetAsyncKeyState('E'))
+//		moveY += 2 * time.Delta();
+//	if (GetAsyncKeyState('A'))
+//		moveX -= 2 * time.Delta();
+//	else if (GetAsyncKeyState('D'))
+//		moveX += 2 * time.Delta();
+//
+//	POINT mouse;
+//	LPPOINT LPM = &mouse;
+//	GetCursorPos(LPM);
+//	float camRotSpd = .005f;
+//
+//	XMMATRIX cam = XMMatrixIdentity();
+//	XMMATRIX trans;
+//
+//	cam = cam * XMMatrixRotationY(mouse.x * camRotSpd);
+//	cam = XMMatrixRotationX(-mouse.y * camRotSpd) * cam;
+//
+//	trans = XMMatrixTranslation((float)moveX, (float)moveY, (float)moveZ);
+//
+//	cam.r[3] = trans.r[3];
+//
+//	if (camOne)
+//		camera.viewMatrix = XMMatrixInverse(nullptr, cam);
+//	else
+//		cameraTwo.viewMatrix = XMMatrixInverse(nullptr, cam);
+//}

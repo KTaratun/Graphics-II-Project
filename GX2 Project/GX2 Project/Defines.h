@@ -15,7 +15,8 @@ void CreateDepthBuffer(ID3D11Device** device, ID3D11DeviceContext** dContext, ID
 	ID3D11DepthStencilView** stenView, ID3D11RasterizerState** rasState, ID3D11Texture2D** texTwoD,
 	IDXGISwapChain** swapChain);
 
-void CreateGround(unsigned int* inBuffer, ID3D11Device** device, ID3D11Buffer **groundVBuffer, ID3D11Buffer **groundIBuffer);
+void CreateGround(unsigned int* inBuffer, ID3D11Device** device, ID3D11Buffer **groundVBuffer, 
+	ID3D11Buffer **groundIBuffer, ID3D11ShaderResourceView **groundSRView);
 
 struct SIMPLE_VERTEX
 {
@@ -34,3 +35,8 @@ struct SCENE_TO_VRAM
 
 void CameraMovement(SCENE_TO_VRAM &camera, XTime &time, double &xMove,
 	double &yMove, double &zMove);
+
+
+//void CameraMovement(SCENE_TO_VRAM &camera, SCENE_TO_VRAM &cameraTwo, XTime &time,
+//	double &xMove, double &yMove, double &zMove,
+//	double &xMoveTwo, double &yMoveTwo, double &zMoveTwo, bool &camOne);

@@ -31,4 +31,6 @@ struct OBJ_STRUCT
 void CreateVBuffer(ID3D11Device* device, OBJ_STRUCT& obj);
 void CreateIBuffer(ID3D11Device* device, OBJ_STRUCT& obj);
 bool LoadOBJ(const char* path, const wchar_t* texture,
+	OBJ_STRUCT* obj, ID3D11Device** device);
+bool LoadOBJNoNormal(const char* path, const wchar_t* texture,
 	OBJ_STRUCT& obj, ID3D11Device* device);

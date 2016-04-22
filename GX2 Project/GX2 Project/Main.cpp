@@ -6,6 +6,7 @@
 #include <ctime>
 #include "Defines.h"
 #include "teapot.h"
+#include <thread>
 
 #include "Trivial_PSCOLOR.csh"
 #include "Trivial_VSCOLOR.csh"
@@ -30,6 +31,7 @@ class DEMO_APP
 	ID3D11RenderTargetView			*rTView;
 	IDXGISwapChain					*swapChain;
 	D3D11_VIEWPORT					vPort;
+	D3D11_VIEWPORT					vPort2;
 
 	ID3D11Buffer *groundVBuffer;
 	ID3D11Buffer *groundIBuffer;
@@ -41,6 +43,7 @@ class DEMO_APP
 	ID3D11Buffer *cBufferDirectional;
 	ID3D11Buffer *cBufferPoint;
 	ID3D11Buffer *cBufferSpot;
+	ID3D11ShaderResourceView *groundSRView;
 
 	ID3D11InputLayout *ILayoutCOLOR;
 	ID3D11InputLayout *ILayoutUV;
@@ -54,6 +57,7 @@ class DEMO_APP
 	ID3D11RasterizerState *rasState;
 	D3D11_MAPPED_SUBRESOURCE map;
 	XTime time;
+	vector<thread> threads;
 
 	XMMATRIX worldMatrix = XMMatrixIdentity();
 	XMMATRIX viewMatrix = XMMatrixIdentity();
@@ -64,10 +68,14 @@ public:
 	DIRECTIONAL_LIGHT dL;
 	POINT_LIGHT pL;
 	SPOT_LIGHT sL;
-	OBJ_STRUCT pyramid;
+	OBJ_STRUCT Zack;
+	OBJ_STRUCT Behemoth;
 	OBJECT_TO_VRAM obj;
 	OBJECT_TO_VRAM ground;
 	SCENE_TO_VRAM camera;
+	SCENE_TO_VRAM cameraTwo;
+	XMMATRIX instances[4];
+	bool camOne;
 	unsigned int numIn = 60;
 	unsigned int inBuffer[60];
 	unsigned int groundInBuffer[4];
@@ -76,6 +84,9 @@ public:
 	double xMove = 0;
 	double yMove = 0;
 	double zMove = 0;
+	double xMoveCTwo = 0;
+	double yMoveCTwo = 0;
+	double zMoveCTwo = 0;
 	double xMovePL = 0;
 	double yMovePL = 0;
 	double zMovePL = 0;
@@ -162,14 +173,25 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	vPort.Height = BACKBUFFER_HEIGHT;
 	vPort.MaxDepth = 1;
 	vPort.MinDepth = 0;
-	vPort.Width = BACKBUFFER_WIDTH;
+	vPort.Width = BACKBUFFER_WIDTH / 2;
+	//vPort.TopLeftX = -250;
+
+	vPort2.Height = BACKBUFFER_HEIGHT;
+	vPort2.MaxDepth = 1;
+	vPort2.MinDepth = 0;
+	vPort2.Width = BACKBUFFER_WIDTH / 2;
+	vPort2.TopLeftX = BACKBUFFER_WIDTH / 2;
 
 	// OBJ CREATION
 	CreateStar(inBuffer, &device, &starVBuffer, &starIBuffer);
-	CreateGround(groundInBuffer, &device, &groundVBuffer, &groundIBuffer);
+	CreateGround(groundInBuffer, &device, &groundVBuffer, &groundIBuffer, &groundSRView);
 
 	// OBJ LOADING
-	LoadOBJ("test pyramid.obj", L"GXIIfloor.dds", pyramid, device);
+	
+	//LoadOBJ("Zack Fair.obj", L"Zack Fair.dds", Zack, device);
+	//LoadOBJNoNormal("Cloud.OBJ", L"GXIIfloor.dds", Behemoth, device);
+
+	threads.push_back(thread(LoadOBJ, "Zack Fair.obj", L"Zack Fair.dds", &Zack, &device));
 
 	// SHADER CREATION
 	device->CreateVertexShader(Trivial_VSCOLOR, sizeof(Trivial_VSCOLOR), nullptr, &VShaderCOLOR);
@@ -261,6 +283,8 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	projectionMatrix = XMMatrixPerspectiveFovLH(fieldOfView, AspectRatio, nearPlane, farPlane);
 	camera.projectionMatrix = projectionMatrix;
 	camera.viewMatrix = viewMatrix;
+	cameraTwo.projectionMatrix = projectionMatrix;
+	cameraTwo.viewMatrix = viewMatrix;
 
 	// LIGHT SETUP
 	dL.color = float4(1, 1, 1, 1);
@@ -273,6 +297,9 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	sL.pos = float4(0, 2, 5, 0);
 	sL.conDirect = float4(0, -1, 0, 0);
 	
+	for (size_t i = 0; i < threads.size(); i++)
+		threads[i].join();
+
 	// WORLD MATRICIES SETUP
 	obj.worldMatrix = XMMatrixIdentity();
 	obj.worldMatrix = XMMatrixTranslation(pL.pos.x, pL.pos.y, pL.pos.z) * obj.worldMatrix;
@@ -280,11 +307,21 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	ground.worldMatrix = XMMatrixIdentity();
 	ground.worldMatrix = XMMatrixTranslation(0, -1, 5) * ground.worldMatrix;
 
-	XMMATRIX PyWo = XMLoadFloat4x4(&pyramid.worldMatrix);
-	PyWo = XMMatrixTranslation(0, 0, 5) * PyWo;
-	PyWo = XMMatrixScaling(2, 2, 2) * PyWo;
-	XMStoreFloat4x4(&pyramid.worldMatrix, PyWo);
-}
+
+	// INSTANCING
+	XMMATRIX ZackWorld = XMLoadFloat4x4(&Zack.worldMatrix);
+	ZackWorld = XMMatrixRotationY(-4.8) * ZackWorld;
+	ZackWorld = XMMatrixRotationX(29.84f) * ZackWorld;
+	ZackWorld = XMMatrixTranslation(-5, 0, -1) * ZackWorld;
+	ZackWorld = XMMatrixScaling(.01, .01, .01) * ZackWorld;
+	XMStoreFloat4x4(&Zack.worldMatrix, ZackWorld);
+
+
+
+	cameraTwo.viewMatrix = XMMatrixIdentity();
+	cameraTwo.viewMatrix = XMMatrixRotationZ(XMConvertToRadians(180)) * cameraTwo.viewMatrix;
+	cameraTwo.viewMatrix = XMMatrixTranslation(.3, -.8, -4.5) * cameraTwo.viewMatrix;
+	}
 
 //************************************************************
 //************ EXECUTION *************************************
@@ -294,9 +331,9 @@ bool DEMO_APP::Run()
 {
 	// OBJ ROTATION
 	time.Signal();
-	XMMATRIX PyWo = XMLoadFloat4x4(&pyramid.worldMatrix);
-	PyWo = XMMatrixRotationY((float)time.Delta()) * PyWo;
-	XMStoreFloat4x4(&pyramid.worldMatrix, PyWo);
+	//XMMATRIX ZackWorld = XMLoadFloat4x4(&Zack.worldMatrix);
+	//ZackWorld = XMMatrixRotationY((float)time.Delta()) * ZackWorld;
+	//XMStoreFloat4x4(&Zack.worldMatrix, ZackWorld);
 
 	//if (!flipped && dL.direct.x < 20)
 		dL.direct.x -= time.Delta() *.2;
@@ -311,11 +348,6 @@ bool DEMO_APP::Run()
 	// VIEW SETUP
 	dContext->VSSetConstantBuffers(1, 1, &cBufferView);
 	dContext->OMSetRenderTargets(1, &rTView, stenView);
-	dContext->RSSetViewports(1, &vPort);
-
-	dContext->Map(cBufferView, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
-	memcpy(map.pData, &camera, sizeof(camera));
-	dContext->Unmap(cBufferView, 0);
 
 	dContext->RSSetState(rasState);
 
@@ -341,61 +373,91 @@ bool DEMO_APP::Run()
 	dContext->ClearRenderTargetView(rTView, color);
 	dContext->ClearDepthStencilView(stenView, D3D11_CLEAR_DEPTH, 1, 0);
 
-	// COLORED OBJS
-	unsigned int stride = sizeof(SIMPLE_VERTEX), offSet = 0;
-	dContext->IASetInputLayout(ILayoutCOLOR);
-	dContext->VSSetConstantBuffers(0, 1, &objCBuffer);
-	dContext->VSSetShader(VShaderCOLOR, NULL, 0);
-	dContext->PSSetShader(PShaderCOLOR, NULL, 0);
+	for (size_t i = 0; i < 2; i++)
+	{
+		if (i == 0)
+		{
+			dContext->Map(cBufferView, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
+			memcpy(map.pData, &camera, sizeof(camera));
+			dContext->Unmap(cBufferView, 0);
+			dContext->RSSetViewports(1, &vPort);
+		}
+		else if (i == 1)
+		{
+			dContext->Map(cBufferView, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
+			memcpy(map.pData, &cameraTwo, sizeof(cameraTwo));
+			dContext->Unmap(cBufferView, 0);
+			dContext->RSSetViewports(1, &vPort2);
+		}
 
-	// STAR
-	dContext->IASetIndexBuffer(starIBuffer, DXGI_FORMAT_R32_UINT, offSet);
-	dContext->Map(objCBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
-	memcpy(map.pData, &obj, sizeof(obj));
-	dContext->Unmap(objCBuffer, 0);
+		// COLORED OBJS
+		unsigned int stride = sizeof(SIMPLE_VERTEX), offSet = 0;
+		dContext->IASetInputLayout(ILayoutCOLOR);
+		dContext->VSSetConstantBuffers(0, 1, &objCBuffer);
+		dContext->VSSetShader(VShaderCOLOR, NULL, 0);
+		dContext->PSSetShader(PShaderCOLOR, NULL, 0);
 
-	dContext->IASetVertexBuffers(0, 1, &starVBuffer, &stride, &offSet);
-	dContext->IASetIndexBuffer(starIBuffer, DXGI_FORMAT_R32_UINT, offSet);
+		// STAR
+		dContext->IASetIndexBuffer(starIBuffer, DXGI_FORMAT_R32_UINT, offSet);
+		dContext->Map(objCBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
+		memcpy(map.pData, &obj, sizeof(obj));
+		dContext->Unmap(objCBuffer, 0);
 
-	dContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	dContext->DrawIndexed(numIn, 0, 0);
+		dContext->IASetVertexBuffers(0, 1, &starVBuffer, &stride, &offSet);
+		dContext->IASetIndexBuffer(starIBuffer, DXGI_FORMAT_R32_UINT, offSet);
 
-	// TEXTURED OBJS
-	stride = sizeof(OBJ_TO_VRAM), offSet = 0;
-	dContext->IASetInputLayout(ILayoutUV);
-	dContext->VSSetConstantBuffers(0, 1, &loadCBuffer);
-	dContext->VSSetShader(VShaderUV, NULL, 0);
-	dContext->PSSetShader(PShaderUV, NULL, 0);
-	//ID3D11SamplerState *sState;
-	//dContext->PSSetSamplers(0, 1, &sState);
+		dContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		dContext->DrawIndexed(numIn, 0, 0);
 
-	// GROUND
-	dContext->IASetIndexBuffer(groundIBuffer, DXGI_FORMAT_R32_UINT, offSet);
-	dContext->Map(loadCBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
-	memcpy(map.pData, &ground, sizeof(ground));
-	dContext->Unmap(loadCBuffer, 0);
+		// TEXTURED OBJS
+		stride = sizeof(OBJ_TO_VRAM), offSet = 0;
+		dContext->IASetInputLayout(ILayoutUV);
+		dContext->VSSetConstantBuffers(0, 1, &loadCBuffer);
+		dContext->VSSetShader(VShaderUV, NULL, 0);
+		dContext->PSSetShader(PShaderUV, NULL, 0);
+		//ID3D11SamplerState *sState;
+		//dContext->PSSetSamplers(0, 1, &sState);
 
-	dContext->IASetVertexBuffers(0, 1, &groundVBuffer, &stride, &offSet);
-	dContext->IASetIndexBuffer(groundIBuffer, DXGI_FORMAT_R32_UINT, offSet);
+		// GROUND
+		dContext->IASetIndexBuffer(groundIBuffer, DXGI_FORMAT_R32_UINT, offSet);
+		dContext->Map(loadCBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
+		memcpy(map.pData, &ground, sizeof(ground));
+		dContext->Unmap(loadCBuffer, 0);
 
-	dContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	dContext->DrawIndexed(6, 0, 0);
+		dContext->IASetVertexBuffers(0, 1, &groundVBuffer, &stride, &offSet);
+		dContext->PSSetShaderResources(0, 1, &groundSRView);
 
-	// PYRAMID
-	dContext->IASetIndexBuffer(pyramid.IBuffer, DXGI_FORMAT_R32_UINT, offSet);
-	dContext->Map(loadCBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
-	memcpy(map.pData, &pyramid.worldMatrix, sizeof(pyramid.worldMatrix));
-	dContext->Unmap(loadCBuffer, 0);
+		dContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		dContext->DrawIndexed(6, 0, 0);
 
-	dContext->IASetVertexBuffers(0, 1, &pyramid.VBuffer, &stride, &offSet);
-	dContext->PSSetShaderResources(0, 1, &pyramid.SRView);
+		// Zack
+		dContext->IASetIndexBuffer(Zack.IBuffer, DXGI_FORMAT_R32_UINT, offSet);
+		dContext->Map(loadCBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
+		memcpy(map.pData, &Zack.worldMatrix, sizeof(Zack.worldMatrix));
+		dContext->Unmap(loadCBuffer, 0);
 
-	dContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	dContext->DrawIndexed(pyramid.indexCount, 0, 0);
+		dContext->IASetVertexBuffers(0, 1, &Zack.VBuffer, &stride, &offSet);
+		dContext->PSSetShaderResources(0, 1, &Zack.SRView);
 
-	// TO FRONT BUFFER
+		dContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		dContext->DrawIndexed(Zack.indexCount, 0, 0);
+
+		//// Behemoth
+		//dContext->IASetIndexBuffer(Behemoth.IBuffer, DXGI_FORMAT_R32_UINT, offSet);
+		//dContext->Map(loadCBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
+		//memcpy(map.pData, &Behemoth.worldMatrix, sizeof(Behemoth.worldMatrix));
+		//dContext->Unmap(loadCBuffer, 0);
+		//
+		//dContext->IASetVertexBuffers(0, 1, &Behemoth.VBuffer, &stride, &offSet);
+		//dContext->PSSetShaderResources(0, 1, &Behemoth.SRView);
+		//
+		//dContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		//dContext->DrawIndexed(Behemoth.indexCount, 0, 0);
+
+		// TO FRONT BUFFER
+	}
+
 	swapChain->Present(0, 0);
-
 	return true;
 }
 
@@ -406,6 +468,9 @@ bool DEMO_APP::Run()
 bool DEMO_APP::ShutDown()
 {
 	dContext->ClearState();
+
+	for (size_t i = 0; i < threads.size(); i++)
+		threads[i].join();
 
 	UnregisterClass(L"DirectXApplication", application);
 	return true;
