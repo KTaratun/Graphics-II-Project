@@ -62,6 +62,9 @@
     <FxCompile Include="Trivial_PSCOLOR.hlsl" />
     <FxCompile Include="PSUV.hlsl" />
     <FxCompile Include="VSUV.hlsl" />
+    <FxCompile Include="VSInstance.hlsl" />
+    <FxCompile Include="VSSkyBox.hlsl" />
+    <FxCompile Include="PSSkyBox.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="GXIIfloor.dds" />

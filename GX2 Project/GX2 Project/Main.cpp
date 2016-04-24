@@ -10,8 +10,11 @@
 
 #include "Trivial_PSCOLOR.csh"
 #include "Trivial_VSCOLOR.csh"
+#include "VSInstance.csh"
 #include "PSUV.csh"
 #include "VSUV.csh"
+#include "VSSkyBox.csh"
+#include "PSSkyBox.csh"
 
 using namespace std;
 
@@ -37,13 +40,18 @@ class DEMO_APP
 	ID3D11Buffer *groundIBuffer;
 	ID3D11Buffer *starVBuffer;
 	ID3D11Buffer *starIBuffer;
+	ID3D11Buffer *boxVBuffer;
+	ID3D11Buffer *boxIBuffer;
 	ID3D11Buffer *objCBuffer;
 	ID3D11Buffer *loadCBuffer;
 	ID3D11Buffer *cBufferView;
 	ID3D11Buffer *cBufferDirectional;
 	ID3D11Buffer *cBufferPoint;
 	ID3D11Buffer *cBufferSpot;
+	//ID3D11Buffer *boxCBuffer;
 	ID3D11ShaderResourceView *groundSRView;
+	ID3D11ShaderResourceView *boxSRView;
+	ID3D11Buffer *cBufferInstance;
 
 	ID3D11InputLayout *ILayoutCOLOR;
 	ID3D11InputLayout *ILayoutUV;
@@ -51,6 +59,9 @@ class DEMO_APP
 	ID3D11PixelShader *PShaderCOLOR;
 	ID3D11VertexShader *VShaderUV;
 	ID3D11PixelShader *PShaderUV;
+	ID3D11VertexShader *VShaderSkyBox;
+	ID3D11PixelShader *PShaderSkyBox;
+	ID3D11VertexShader *VSShaderInstance;
 
 	ID3D11Texture2D *texTwoD;
 	ID3D11DepthStencilView *stenView;
@@ -65,6 +76,7 @@ class DEMO_APP
 
 public:
 	
+	// OBJECTS
 	DIRECTIONAL_LIGHT dL;
 	POINT_LIGHT pL;
 	SPOT_LIGHT sL;
@@ -74,11 +86,13 @@ public:
 	OBJECT_TO_VRAM ground;
 	SCENE_TO_VRAM camera;
 	SCENE_TO_VRAM cameraTwo;
-	XMMATRIX instances[4];
+	OBJECT_TO_VRAM box;
+	XMMATRIX instances[3];
 	bool camOne;
 	unsigned int numIn = 60;
 	unsigned int inBuffer[60];
 	unsigned int groundInBuffer[4];
+	unsigned int boxInBuffer[36];
 
 	bool flipped = false;
 	double xMove = 0;
@@ -152,13 +166,15 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	assert(hr == S_OK);
 
+	D3D_FEATURE_LEVEL FeLevel[1] = { D3D_FEATURE_LEVEL_11_1 };// 0xb100;
+
 	hr = D3D11CreateDeviceAndSwapChain(
 		NULL,						//pAdapter
 		D3D_DRIVER_TYPE_HARDWARE,	//driverType
 		NULL,						//hModule
 		flag,						//flags
-		nullptr,					//featureLevel
-		0,							//featureLevels
+		FeLevel,					//featureLevel
+		1,							//featureLevels
 		D3D11_SDK_VERSION,			//SDKVersion
 		&sCDes,
 		&swapChain,					//swapChain
@@ -185,6 +201,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	// OBJ CREATION
 	CreateStar(inBuffer, &device, &starVBuffer, &starIBuffer);
 	CreateGround(groundInBuffer, &device, &groundVBuffer, &groundIBuffer, &groundSRView);
+	CreateCube(boxInBuffer, &device, &boxVBuffer, &boxIBuffer, &boxSRView);
 
 	// OBJ LOADING
 	
@@ -199,6 +216,11 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	device->CreateVertexShader(VSUV, sizeof(VSUV), nullptr, &VShaderUV);
 	device->CreatePixelShader(PSUV, sizeof(PSUV), nullptr, &PShaderUV);
+
+	device->CreateVertexShader(VSSkyBox, sizeof(VSSkyBox), nullptr, &VShaderSkyBox);
+	device->CreatePixelShader(PSSkyBox, sizeof(PSSkyBox), nullptr, &PShaderSkyBox);
+
+	device->CreateVertexShader(VSInstance, sizeof(VSInstance), nullptr, &VSShaderInstance);
 
 	// LAYOUTS
 	D3D11_INPUT_ELEMENT_DESC vLayoutCOLOR[] =
@@ -278,6 +300,22 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	device->CreateBuffer(&vRDSPOT, nullptr, &cBufferSpot);
 
+	D3D11_BUFFER_DESC vRDInstance;
+	vRDInstance.Usage = D3D11_USAGE_DYNAMIC;
+	vRDInstance.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	vRDInstance.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	vRDInstance.ByteWidth = sizeof(instances);
+	vRDInstance.StructureByteStride = sizeof(XMMATRIX);
+	vRDInstance.MiscFlags = 0;
+
+	D3D11_SUBRESOURCE_DATA instData;
+
+	instData.pSysMem = &instances;
+	instData.SysMemPitch = 0;
+	instData.SysMemSlicePitch = 0;
+
+	device->CreateBuffer(&vRDInstance, &instData, &cBufferInstance);
+
 	// CAMERA SETUP
 	float nearPlane = 0.1f, farPlane = 100, fieldOfView = 30, AspectRatio = BACKBUFFER_HEIGHT / BACKBUFFER_WIDTH;
 	projectionMatrix = XMMatrixPerspectiveFovLH(fieldOfView, AspectRatio, nearPlane, farPlane);
@@ -307,6 +345,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	ground.worldMatrix = XMMatrixIdentity();
 	ground.worldMatrix = XMMatrixTranslation(0, -1, 5) * ground.worldMatrix;
 
+	box.worldMatrix = XMMatrixIdentity();
 
 	// INSTANCING
 	XMMATRIX ZackWorld = XMLoadFloat4x4(&Zack.worldMatrix);
@@ -316,7 +355,23 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	ZackWorld = XMMatrixScaling(.01, .01, .01) * ZackWorld;
 	XMStoreFloat4x4(&Zack.worldMatrix, ZackWorld);
 
+	instances[0] = XMMatrixIdentity();
+	instances[0] = XMMatrixRotationY(-4.8) * instances[0];
+	instances[0] = XMMatrixRotationX(29.84f) * instances[0];
+	instances[0] = XMMatrixTranslation(-5, 0, -1) * instances[0];
+	instances[0] = XMMatrixScaling(.01, .01, .01) * instances[0];
 
+	instances[1] = XMMatrixIdentity();
+	instances[1] = XMMatrixRotationY(-4.8) * instances[1];
+	instances[1] = XMMatrixRotationX(29.84f) * instances[1];
+	instances[1] = XMMatrixTranslation(-8, 0, -1) * instances[1];
+	instances[1] = XMMatrixScaling(.01, .01, .01) * instances[1];
+
+	instances[2] = XMMatrixIdentity();
+	instances[2] = XMMatrixRotationY(-4.8) * instances[2];
+	instances[2] = XMMatrixRotationX(29.84f) * instances[2];
+	instances[2] = XMMatrixTranslation(-3, 0, -1) * instances[2];
+	instances[2] = XMMatrixScaling(.01, .01, .01) * instances[2];
 
 	cameraTwo.viewMatrix = XMMatrixIdentity();
 	cameraTwo.viewMatrix = XMMatrixRotationZ(XMConvertToRadians(180)) * cameraTwo.viewMatrix;
@@ -349,7 +404,14 @@ bool DEMO_APP::Run()
 	dContext->VSSetConstantBuffers(1, 1, &cBufferView);
 	dContext->OMSetRenderTargets(1, &rTView, stenView);
 
-	dContext->RSSetState(rasState);
+	//dContext->RSSetState(rasState);
+
+	// INSTANCE SETUP
+	dContext->VSSetConstantBuffers(2, 1, &cBufferInstance);
+	dContext->Map(cBufferInstance, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
+	memcpy(map.pData, &instances, sizeof(instances));
+	dContext->Unmap(cBufferInstance, 0);
+
 
 	// LIGHTS
 	dContext->PSSetConstantBuffers(0, 1, &cBufferDirectional);
@@ -371,8 +433,8 @@ bool DEMO_APP::Run()
 	float color[4];
 	color[2] = 1;
 	dContext->ClearRenderTargetView(rTView, color);
-	dContext->ClearDepthStencilView(stenView, D3D11_CLEAR_DEPTH, 1, 0);
 
+	// VIEW LOOP
 	for (size_t i = 0; i < 2; i++)
 	{
 		if (i == 0)
@@ -381,6 +443,7 @@ bool DEMO_APP::Run()
 			memcpy(map.pData, &camera, sizeof(camera));
 			dContext->Unmap(cBufferView, 0);
 			dContext->RSSetViewports(1, &vPort);
+			box.worldMatrix.r[3] = XMMatrixInverse(0, camera.viewMatrix).r[3];
 		}
 		else if (i == 1)
 		{
@@ -388,10 +451,43 @@ bool DEMO_APP::Run()
 			memcpy(map.pData, &cameraTwo, sizeof(cameraTwo));
 			dContext->Unmap(cBufferView, 0);
 			dContext->RSSetViewports(1, &vPort2);
+			box.worldMatrix.r[3] = XMMatrixInverse(0, cameraTwo.viewMatrix).r[3];
 		}
 
+		// SKYBOX
+		ID3D11SamplerState *sState;
+		D3D11_SAMPLER_DESC samDesc;
+		samDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+		samDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+		samDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+		samDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+		samDesc.MaxAnisotropy = 1;
+		samDesc.MipLODBias = 0;
+
+		device->CreateSamplerState(&samDesc, &sState);
+		dContext->IASetInputLayout(ILayoutCOLOR);
+		dContext->PSSetSamplers(0, 1, &sState);
+		dContext->VSSetSamplers(0, 1, &sState);
+		unsigned int stride = sizeof(OBJ_TO_VRAM), offSet = 0;
+		dContext->VSSetConstantBuffers(0, 1, &loadCBuffer);
+		dContext->VSSetShader(VShaderSkyBox, NULL, 0);
+		dContext->PSSetShader(PShaderSkyBox, NULL, 0);
+
+		dContext->IASetIndexBuffer(boxIBuffer, DXGI_FORMAT_R32_UINT, offSet);
+		dContext->Map(loadCBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
+		memcpy(map.pData, &box, sizeof(box));
+		dContext->Unmap(loadCBuffer, 0);
+
+		dContext->IASetVertexBuffers(0, 1, &boxVBuffer, &stride, &offSet);
+		dContext->PSSetShaderResources(0, 1, &boxSRView);
+
+		dContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		dContext->DrawIndexed(36, 0, 0);
+
+		dContext->ClearDepthStencilView(stenView, D3D11_CLEAR_DEPTH, 1, 0);
+
 		// COLORED OBJS
-		unsigned int stride = sizeof(SIMPLE_VERTEX), offSet = 0;
+		stride = sizeof(SIMPLE_VERTEX), offSet = 0;
 		dContext->IASetInputLayout(ILayoutCOLOR);
 		dContext->VSSetConstantBuffers(0, 1, &objCBuffer);
 		dContext->VSSetShader(VShaderCOLOR, NULL, 0);
@@ -412,11 +508,9 @@ bool DEMO_APP::Run()
 		// TEXTURED OBJS
 		stride = sizeof(OBJ_TO_VRAM), offSet = 0;
 		dContext->IASetInputLayout(ILayoutUV);
-		dContext->VSSetConstantBuffers(0, 1, &loadCBuffer);
 		dContext->VSSetShader(VShaderUV, NULL, 0);
 		dContext->PSSetShader(PShaderUV, NULL, 0);
-		//ID3D11SamplerState *sState;
-		//dContext->PSSetSamplers(0, 1, &sState);
+		dContext->VSSetConstantBuffers(0, 1, &loadCBuffer);
 
 		// GROUND
 		dContext->IASetIndexBuffer(groundIBuffer, DXGI_FORMAT_R32_UINT, offSet);
@@ -440,7 +534,18 @@ bool DEMO_APP::Run()
 		dContext->PSSetShaderResources(0, 1, &Zack.SRView);
 
 		dContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		dContext->DrawIndexed(Zack.indexCount, 0, 0);
+		dContext->VSSetShader(VSShaderInstance, NULL, 0);
+		dContext->DrawInstanced(Zack.indexCount, 3, 0, 0);
+		//dContext->IASetIndexBuffer(Zack.IBuffer, DXGI_FORMAT_R32_UINT, offSet);
+		//dContext->Map(loadCBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
+		//memcpy(map.pData, &Zack.worldMatrix, sizeof(Zack.worldMatrix));
+		//dContext->Unmap(loadCBuffer, 0);
+		//
+		//dContext->IASetVertexBuffers(0, 1, &Zack.VBuffer, &stride, &offSet);
+		//dContext->PSSetShaderResources(0, 1, &Zack.SRView);
+		//
+		//dContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		//dContext->DrawIndexed(Zack.indexCount, 0, 0);
 
 		//// Behemoth
 		//dContext->IASetIndexBuffer(Behemoth.IBuffer, DXGI_FORMAT_R32_UINT, offSet);
@@ -468,9 +573,6 @@ bool DEMO_APP::Run()
 bool DEMO_APP::ShutDown()
 {
 	dContext->ClearState();
-
-	for (size_t i = 0; i < threads.size(); i++)
-		threads[i].join();
 
 	UnregisterClass(L"DirectXApplication", application);
 	return true;

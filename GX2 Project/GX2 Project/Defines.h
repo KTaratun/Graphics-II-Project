@@ -36,6 +36,8 @@ struct SCENE_TO_VRAM
 void CameraMovement(SCENE_TO_VRAM &camera, XTime &time, double &xMove,
 	double &yMove, double &zMove);
 
+void CreateCube(unsigned int* inBuffer, ID3D11Device** device, ID3D11Buffer** cubeVBuffer,
+	ID3D11Buffer** iBuffer, ID3D11ShaderResourceView **boxSRView);
 
 //void CameraMovement(SCENE_TO_VRAM &camera, SCENE_TO_VRAM &cameraTwo, XTime &time,
 //	double &xMove, double &yMove, double &zMove,
