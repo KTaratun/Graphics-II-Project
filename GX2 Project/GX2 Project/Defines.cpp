@@ -168,16 +168,16 @@ void CreateGround(unsigned int* inBuffer, ID3D11Device** device, ID3D11Buffer **
 	OBJ_TO_VRAM *Verts = new OBJ_TO_VRAM[4];
 
 	Verts[0].xyz = float3(-5, 0, 5);
-	Verts[0].uvs = float2(0, 1);
+	Verts[0].uvs = float2(0, 0);
 	Verts[0].normals = float3(0, 1, 0);
 	Verts[1].xyz = float3(5, 0, 5);
-	Verts[1].uvs = float2(1, 1);
+	Verts[1].uvs = float2(1, 0);
 	Verts[1].normals = float3(0, 1, 0);
 	Verts[2].xyz = float3(-5, 0, -5);
-	Verts[2].uvs = float2(1, 0);
+	Verts[2].uvs = float2(0, 1);
 	Verts[2].normals = float3(0, 1, 0);
 	Verts[3].xyz = float3(5, 0, -5);
-	Verts[3].uvs = float2(0, 0);
+	Verts[3].uvs = float2(1, 1);
 	Verts[3].normals = float3(0, 1, 0);
 
 	CD3D11_BUFFER_DESC groundVBDes;
@@ -233,7 +233,7 @@ void CreateDepthBuffer(ID3D11Device** device, ID3D11DeviceContext** dContext, ID
 	texDes.MipLevels = 1;
 	texDes.ArraySize = 1;
 	texDes.Format = DXGI_FORMAT_D32_FLOAT;
-	texDes.SampleDesc.Count = 1;
+	texDes.SampleDesc.Count = 4;
 	texDes.SampleDesc.Quality = 0;
 	texDes.Usage = D3D11_USAGE_DEFAULT;
 	texDes.BindFlags = D3D11_BIND_DEPTH_STENCIL;
@@ -275,7 +275,7 @@ void CreateDepthBuffer(ID3D11Device** device, ID3D11DeviceContext** dContext, ID
 
 	D3D11_DEPTH_STENCIL_VIEW_DESC descDSV;
 	descDSV.Format = DXGI_FORMAT_D32_FLOAT;
-	descDSV.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	descDSV.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2DMS;
 	descDSV.Texture2D.MipSlice = 0;
 	descDSV.Flags = 0;
 	
@@ -298,9 +298,13 @@ void CreateDepthBuffer(ID3D11Device** device, ID3D11DeviceContext** dContext, ID
 
 	// CREATE RASTERIZER STATE
 	D3D11_RASTERIZER_DESC rasD;
+	ZeroMemory(&rasD, sizeof(D3D11_RASTERIZER_DESC));
 	rasD.FillMode = D3D11_FILL_SOLID;
 	rasD.CullMode = D3D11_CULL_FRONT;
+	rasD.FrontCounterClockwise = true;
 	rasD.AntialiasedLineEnable = true;
+	rasD.DepthClipEnable = true;
+	rasD.MultisampleEnable = true;
 
 	(*device)->CreateRasterizerState(&rasD, rasState);
 }
