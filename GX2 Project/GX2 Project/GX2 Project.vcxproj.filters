@@ -65,6 +65,8 @@
     <FxCompile Include="VSInstance.hlsl" />
     <FxCompile Include="VSSkyBox.hlsl" />
     <FxCompile Include="PSSkyBox.hlsl" />
+    <FxCompile Include="PSPostPros.hlsl" />
+    <FxCompile Include="VSPostPros.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="GXIIfloor.dds" />

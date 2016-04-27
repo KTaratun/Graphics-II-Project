@@ -35,11 +35,10 @@ OUTPUT_VERTEX main(INPUT_VERTEX fromVertexBuffer)
 		// move local space vertex from vertex buffer into world space.
 
 	localH = mul(localH, worldMatrix);
-	float3 worldPos = localH;
+	sendToRasterizer.world = localH;
 	localH = mul(localH, viewMatrix);
 	localH = mul(localH, projectionMatrix);
 
-	sendToRasterizer.world = worldPos;
 	sendToRasterizer.projectedCoordinate = localH;
 
 	sendToRasterizer.uvOut = fromVertexBuffer.uvs;

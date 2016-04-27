@@ -1,7 +1,6 @@
 #include "Defines.h"
 
-void CreateStar(unsigned int* inBuffer, ID3D11Device** device, ID3D11Buffer** starVBuffer,
-	ID3D11Buffer** iBuffer)
+void CreateStar(STAR &star, ID3D11Device** device)
 {
 	int numIn = 60;
 	int objVCount = 12;
@@ -50,7 +49,7 @@ void CreateStar(unsigned int* inBuffer, ID3D11Device** device, ID3D11Buffer** st
 	starInitData.SysMemPitch = 0;
 	starInitData.SysMemSlicePitch = 0;
 
-	(*device)->CreateBuffer(&oBjVBDes, &starInitData, starVBuffer);
+	(*device)->CreateBuffer(&oBjVBDes, &starInitData, &star.VBuffer);
 
 	int j = 1;
 	int k = 1;
@@ -61,40 +60,40 @@ void CreateStar(unsigned int* inBuffer, ID3D11Device** device, ID3D11Buffer** st
 			if (i % 3 == 0)
 			{
 				if (j == 10)
-					inBuffer[i] = 1;
+					star.inBuffer[i] = 1;
 				else
-					inBuffer[i] = j + 1;
+					star.inBuffer[i] = j + 1;
 			}
 			else if (i % 3 == 1)
-				inBuffer[i] = j;
+				star.inBuffer[i] = j;
 			else
 			{
-				inBuffer[i] = 0;
+				star.inBuffer[i] = 0;
 				j++;
 			}
 		}
 		else
 		{
 			if (i % 3 == 0)
-				inBuffer[i] = k;
+				star.inBuffer[i] = k;
 			else if (i % 3 == 1)
 			{
 				if (k == 10)
-					inBuffer[i] = 1;
+					star.inBuffer[i] = 1;
 				else
-					inBuffer[i] = k + 1;
+					star.inBuffer[i] = k + 1;
 			}
 
 			else
 			{
-				inBuffer[i] = 11;
+				star.inBuffer[i] = 11;
 				k++;
 			}
 		}
 	}
 
 	D3D11_SUBRESOURCE_DATA IndexData;
-	IndexData.pSysMem = inBuffer;
+	IndexData.pSysMem = star.inBuffer;
 	IndexData.SysMemPitch = 0;
 	IndexData.SysMemSlicePitch = 0;
 
@@ -106,7 +105,7 @@ void CreateStar(unsigned int* inBuffer, ID3D11Device** device, ID3D11Buffer** st
 	vRDIndex.StructureByteStride = sizeof(unsigned int);
 	vRDIndex.MiscFlags = 0;
 
-	(*device)->CreateBuffer(&vRDIndex, &IndexData, iBuffer);
+	(*device)->CreateBuffer(&vRDIndex, &IndexData, &star.IBuffer);
 }
 
 //void CreateGrid()
@@ -162,8 +161,7 @@ void CreateStar(unsigned int* inBuffer, ID3D11Device** device, ID3D11Buffer** st
 //	}
 //}
 
-void CreateGround(unsigned int* inBuffer, ID3D11Device** device, ID3D11Buffer **groundVBuffer, 
-	ID3D11Buffer **groundIBuffer, ID3D11ShaderResourceView **groundSRView)
+void CreateQuadFlat(QUAD &quad, ID3D11Device** device)
 {
 	OBJ_TO_VRAM *Verts = new OBJ_TO_VRAM[4];
 
@@ -193,18 +191,18 @@ void CreateGround(unsigned int* inBuffer, ID3D11Device** device, ID3D11Buffer **
 	groundInitData.SysMemPitch = 0;
 	groundInitData.SysMemSlicePitch = 0;
 
-	(*device)->CreateBuffer(&groundVBDes, &groundInitData, groundVBuffer);
+	(*device)->CreateBuffer(&groundVBDes, &groundInitData, &quad.VBuffer);
 	delete[] Verts;
 
-	inBuffer[0] = 0;
-	inBuffer[1] = 1;
-	inBuffer[2] = 2;
-	inBuffer[3] = 2;
-	inBuffer[4] = 1;
-	inBuffer[5] = 3;
+	quad.InBuffer[0] = 0;
+	quad.InBuffer[1] = 1;
+	quad.InBuffer[2] = 2;
+	quad.InBuffer[3] = 2;
+	quad.InBuffer[4] = 1;
+	quad.InBuffer[5] = 3;
 
 	D3D11_SUBRESOURCE_DATA IndexData;
-	IndexData.pSysMem = inBuffer;
+	IndexData.pSysMem = quad.InBuffer;
 	IndexData.SysMemPitch = 0;
 	IndexData.SysMemSlicePitch = 0;
 
@@ -216,9 +214,67 @@ void CreateGround(unsigned int* inBuffer, ID3D11Device** device, ID3D11Buffer **
 	vRDIndex.StructureByteStride = sizeof(unsigned int);
 	vRDIndex.MiscFlags = 0;
 
-	CreateDDSTextureFromFile((*device), L"GXIIfloor.dds", NULL, groundSRView);
+	CreateDDSTextureFromFile((*device), L"GXIIfloor.dds", NULL, &quad.SRView);
 
-	(*device)->CreateBuffer(&vRDIndex, &IndexData, groundIBuffer);
+	(*device)->CreateBuffer(&vRDIndex, &IndexData, &quad.IBuffer);
+}
+
+void CreateQuadScreen(QUAD &quad, ID3D11Device** device)
+{
+	OBJ_TO_VRAM *Verts = new OBJ_TO_VRAM[4];
+
+	Verts[0].xyz = float3(-1, 1, 0);
+	Verts[0].uvs = float2(0, 0);
+	Verts[0].normals = float3(0, 1, 0);
+	Verts[1].xyz = float3(1, 1, 0);
+	Verts[1].uvs = float2(1, 0);
+	Verts[1].normals = float3(0, 1, 0);
+	Verts[2].xyz = float3(-1, -1, 0);
+	Verts[2].uvs = float2(0, 1);
+	Verts[2].normals = float3(0, 1, 0);
+	Verts[3].xyz = float3(1, -1, 0);
+	Verts[3].uvs = float2(1, 1);
+	Verts[3].normals = float3(0, 1, 0);
+
+	CD3D11_BUFFER_DESC groundVBDes;
+	groundVBDes.Usage = D3D11_USAGE_IMMUTABLE;
+	groundVBDes.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	groundVBDes.CPUAccessFlags = NULL;
+	groundVBDes.ByteWidth = sizeof(OBJ_TO_VRAM) * 4;
+	groundVBDes.MiscFlags = 0;
+
+	D3D11_SUBRESOURCE_DATA groundInitData;
+
+	groundInitData.pSysMem = Verts;
+	groundInitData.SysMemPitch = 0;
+	groundInitData.SysMemSlicePitch = 0;
+
+	(*device)->CreateBuffer(&groundVBDes, &groundInitData, &quad.VBuffer);
+	delete[] Verts;
+
+	quad.InBuffer[0] = 0;
+	quad.InBuffer[1] = 1;
+	quad.InBuffer[2] = 2;
+	quad.InBuffer[3] = 2;
+	quad.InBuffer[4] = 1;
+	quad.InBuffer[5] = 3;
+
+	D3D11_SUBRESOURCE_DATA IndexData;
+	IndexData.pSysMem = quad.InBuffer;
+	IndexData.SysMemPitch = 0;
+	IndexData.SysMemSlicePitch = 0;
+
+	D3D11_BUFFER_DESC vRDIndex;
+	vRDIndex.Usage = D3D11_USAGE_IMMUTABLE;
+	vRDIndex.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	vRDIndex.CPUAccessFlags = NULL;
+	vRDIndex.ByteWidth = sizeof(unsigned int) * 6;
+	vRDIndex.StructureByteStride = sizeof(unsigned int);
+	vRDIndex.MiscFlags = 0;
+
+	CreateDDSTextureFromFile((*device), L"GXIIfloor.dds", NULL, &quad.SRView);
+
+	(*device)->CreateBuffer(&vRDIndex, &IndexData, &quad.IBuffer);
 }
 
 void CreateDepthBuffer(ID3D11Device** device, ID3D11DeviceContext** dContext, ID3D11RenderTargetView** rTView,
@@ -336,7 +392,7 @@ void CameraMovement(SCENE_TO_VRAM &camera, XTime &time, double &xMove,
 	cam = cam * XMMatrixRotationY(mouse.x * camRotSpd);
 	cam = XMMatrixRotationX(-mouse.y * camRotSpd) * cam;
 
-	trans = XMMatrixTranslation((float)xMove, (float)yMove, (float)zMove);
+	trans = XMMatrixTranslation((float)xMove, (float)yMove, (float)zMove + -.05);
 
 	cam.r[3] = trans.r[3];
 	camera.viewMatrix = XMMatrixInverse(nullptr, cam);
@@ -403,8 +459,7 @@ void CameraMovement(SCENE_TO_VRAM &camera, XTime &time, double &xMove,
 //		cameraTwo.viewMatrix = XMMatrixInverse(nullptr, cam);
 //}
 
-void CreateCube(unsigned int* inBuffer, ID3D11Device** device, ID3D11Buffer** cubeVBuffer,
-	ID3D11Buffer** iBuffer, ID3D11ShaderResourceView **boxSRView)
+void CreateCube(BOX &box, ID3D11Device** device)
 {
 	OBJ_TO_VRAM *tri = new OBJ_TO_VRAM[24];
 
@@ -588,58 +643,58 @@ void CreateCube(unsigned int* inBuffer, ID3D11Device** device, ID3D11Buffer** cu
 	cubeInitData.SysMemPitch = 0;
 	cubeInitData.SysMemSlicePitch = 0;
 
-	(*device)->CreateBuffer(&oBjVBDes, &cubeInitData, cubeVBuffer);
+	(*device)->CreateBuffer(&oBjVBDes, &cubeInitData, &box.VBuffer);
 
-	inBuffer[0] = 3;
-	inBuffer[1] = 2;
-	inBuffer[2] = 1;
+	box.InBuffer[0] = 3;
+	box.InBuffer[1] = 2;
+	box.InBuffer[2] = 1;
 
-	inBuffer[3] = 3;
-	inBuffer[4] = 1;
-	inBuffer[5] = 0;
+	box.InBuffer[3] = 3;
+	box.InBuffer[4] = 1;
+	box.InBuffer[5] = 0;
 
-	inBuffer[6] = 7;
-	inBuffer[7] = 6;
-	inBuffer[8] = 5;
+	box.InBuffer[6] = 7;
+	box.InBuffer[7] = 6;
+	box.InBuffer[8] = 5;
 
-	inBuffer[9] = 7;
-	inBuffer[10] = 5;
-	inBuffer[11] = 4;
+	box.InBuffer[9] = 7;
+	box.InBuffer[10] = 5;
+	box.InBuffer[11] = 4;
 
-	inBuffer[12] = 8;
-	inBuffer[13] = 9;
-	inBuffer[14] = 10;
+	box.InBuffer[12] = 8;
+	box.InBuffer[13] = 9;
+	box.InBuffer[14] = 10;
 
-	inBuffer[15] = 8;
-	inBuffer[16] = 10;
-	inBuffer[17] = 11;
+	box.InBuffer[15] = 8;
+	box.InBuffer[16] = 10;
+	box.InBuffer[17] = 11;
 
-	inBuffer[18] = 12;
-	inBuffer[19] = 13;
-	inBuffer[20] = 14;
+	box.InBuffer[18] = 12;
+	box.InBuffer[19] = 13;
+	box.InBuffer[20] = 14;
 
-	inBuffer[21] = 12;
-	inBuffer[22] = 14;
-	inBuffer[23] = 15;
+	box.InBuffer[21] = 12;
+	box.InBuffer[22] = 14;
+	box.InBuffer[23] = 15;
 
-	inBuffer[24] = 16;
-	inBuffer[25] = 17;
-	inBuffer[26] = 19;
+	box.InBuffer[24] = 16;
+	box.InBuffer[25] = 17;
+	box.InBuffer[26] = 19;
 
-	inBuffer[27] = 16;
-	inBuffer[28] = 19;
-	inBuffer[29] = 18;
+	box.InBuffer[27] = 16;
+	box.InBuffer[28] = 19;
+	box.InBuffer[29] = 18;
 
-	inBuffer[30] = 20;
-	inBuffer[31] = 23;
-	inBuffer[32] = 22;
+	box.InBuffer[30] = 20;
+	box.InBuffer[31] = 23;
+	box.InBuffer[32] = 22;
 
-	inBuffer[33] = 20;
-	inBuffer[34] = 21;
-	inBuffer[35] = 23;
+	box.InBuffer[33] = 20;
+	box.InBuffer[34] = 21;
+	box.InBuffer[35] = 23;
 
 	D3D11_SUBRESOURCE_DATA IndexData;
-	IndexData.pSysMem = inBuffer;
+	IndexData.pSysMem = box.InBuffer;
 	IndexData.SysMemPitch = 0;
 	IndexData.SysMemSlicePitch = 0;
 
@@ -651,7 +706,7 @@ void CreateCube(unsigned int* inBuffer, ID3D11Device** device, ID3D11Buffer** cu
 	vRDIndex.StructureByteStride = sizeof(unsigned int);
 	vRDIndex.MiscFlags = 0;
 
-	(*device)->CreateBuffer(&vRDIndex, &IndexData, iBuffer);
+	(*device)->CreateBuffer(&vRDIndex, &IndexData, &box.IBuffer);
 
-	CreateDDSTextureFromFile((*device), L"SkyboxOcean.dds", NULL, boxSRView);
+	CreateDDSTextureFromFile((*device), L"SkyboxOcean.dds", NULL, &box.SRView);
 }

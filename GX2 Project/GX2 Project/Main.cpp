@@ -15,6 +15,9 @@
 #include "VSUV.csh"
 #include "VSSkyBox.csh"
 #include "PSSkyBox.csh"
+// That ain't how you abbreviate process...
+#include "VSPostPros.csh"
+#include "PSPostPros.csh"
 
 using namespace std;
 
@@ -37,25 +40,20 @@ class DEMO_APP
 	D3D11_VIEWPORT					vPort2;
 	D3D11_VIEWPORT					vPort3;
 
-	ID3D11Buffer *groundVBuffer;
-	ID3D11Buffer *groundIBuffer;
-	ID3D11Buffer *starVBuffer;
-	ID3D11Buffer *starIBuffer;
-	ID3D11Buffer *boxVBuffer;
-	ID3D11Buffer *boxIBuffer;
+	// CONSTANT BUFFERS
 	ID3D11Buffer *objCBuffer;
 	ID3D11Buffer *loadCBuffer;
 	ID3D11Buffer *cBufferView;
 	ID3D11Buffer *cBufferDirectional;
 	ID3D11Buffer *cBufferPoint;
 	ID3D11Buffer *cBufferSpot;
-	//ID3D11Buffer *boxCBuffer;
-	ID3D11ShaderResourceView *groundSRView;
-	ID3D11ShaderResourceView *boxSRView;
 	ID3D11Buffer *cBufferInstance;
 
+	// LAYOUTS
 	ID3D11InputLayout *ILayoutCOLOR;
 	ID3D11InputLayout *ILayoutUV;
+
+	// SHADERS
 	ID3D11VertexShader *VShaderCOLOR;
 	ID3D11PixelShader *PShaderCOLOR;
 	ID3D11VertexShader *VShaderUV;
@@ -63,18 +61,27 @@ class DEMO_APP
 	ID3D11VertexShader *VShaderSkyBox;
 	ID3D11PixelShader *PShaderSkyBox;
 	ID3D11VertexShader *VSShaderInstance;
+	ID3D11VertexShader *VSShaderPostPros;
+	ID3D11PixelShader *PSShaderPostPros;
+
+	// TEXTURE AND VIEWS
 	ID3D11Texture2D *tex2;
+	ID3D11Texture2D *tex2DEPTH;
 	ID3D11ShaderResourceView *sRVTex2;
+	ID3D11ShaderResourceView *sRV;
+	ID3D11ShaderResourceView *sRV2;
 	ID3D11RenderTargetView *rTView2;
 	ID3D11DepthStencilView* stenViewTex2;
-
 	ID3D11Texture2D *texTwoD;
 	ID3D11DepthStencilView *stenView;
 	ID3D11RasterizerState *rasState;
 	D3D11_MAPPED_SUBRESOURCE map;
+
+	// OTHER
 	XTime time;
 	vector<thread> threads;
 
+	// VIEW
 	XMMATRIX worldMatrix = XMMatrixIdentity();
 	XMMATRIX viewMatrix = XMMatrixIdentity();
 	XMMATRIX projectionMatrix;
@@ -87,17 +94,14 @@ public:
 	SPOT_LIGHT sL;
 	OBJ_STRUCT Zack;
 	OBJ_STRUCT Behemoth;
-	OBJECT_TO_VRAM obj;
-	OBJECT_TO_VRAM ground;
+	STAR star;
+	QUAD ground;
+	QUAD screen;
 	SCENE_TO_VRAM camera;
 	SCENE_TO_VRAM cameraTwo;
-	OBJECT_TO_VRAM box;
+	BOX box;
 	XMMATRIX instances[3];
 	bool camOne;
-	unsigned int numIn = 60;
-	unsigned int inBuffer[60];
-	unsigned int groundInBuffer[4];
-	unsigned int boxInBuffer[36];
 
 	bool flipped = false;
 	double xMove = 0;
@@ -195,7 +199,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	vPort.MaxDepth = 1;
 	vPort.MinDepth = 0;
 	vPort.Width = BACKBUFFER_WIDTH / 2;
-	//vPort.TopLeftX = -250;
 
 	vPort2.Height = BACKBUFFER_HEIGHT;
 	vPort2.MaxDepth = 1;
@@ -203,15 +206,17 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	vPort2.Width = BACKBUFFER_WIDTH / 2;
 	vPort2.TopLeftX = BACKBUFFER_WIDTH / 2;
 
+	// original view
 	vPort3.Height = BACKBUFFER_HEIGHT;
 	vPort3.MaxDepth = 1;
 	vPort3.MinDepth = 0;
 	vPort3.Width = BACKBUFFER_WIDTH;
 
 	// OBJ CREATION
-	CreateStar(inBuffer, &device, &starVBuffer, &starIBuffer);
-	CreateGround(groundInBuffer, &device, &groundVBuffer, &groundIBuffer, &groundSRView);
-	CreateCube(boxInBuffer, &device, &boxVBuffer, &boxIBuffer, &boxSRView);
+	CreateStar(star, &device);
+	CreateQuadFlat(ground, &device);
+	CreateCube(box, &device);
+	CreateQuadScreen(screen, &device);
 
 	// OBJ LOADING
 	
@@ -231,6 +236,9 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	device->CreatePixelShader(PSSkyBox, sizeof(PSSkyBox), nullptr, &PShaderSkyBox);
 
 	device->CreateVertexShader(VSInstance, sizeof(VSInstance), nullptr, &VSShaderInstance);
+
+	device->CreateVertexShader(VSPostPros, sizeof(VSPostPros), nullptr, &VSShaderPostPros);
+	device->CreatePixelShader(PSPostPros, sizeof(PSPostPros), nullptr, &PSShaderPostPros);
 
 	// LAYOUTS
 	D3D11_INPUT_ELEMENT_DESC vLayoutCOLOR[] =
@@ -327,11 +335,10 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	device->CreateBuffer(&vRDInstance, &instData, &cBufferInstance);
 
 	// RENDER TO TEXTURE
-
 	D3D11_TEXTURE2D_DESC Tex2DDesc;
 	ZeroMemory(&Tex2DDesc, sizeof(Tex2DDesc));
 	Tex2DDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-	Tex2DDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+	Tex2DDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	Tex2DDesc.MiscFlags = D3D11_RESOURCE_MISC_GENERATE_MIPS;
 	Tex2DDesc.SampleDesc.Count = 1;
 	Tex2DDesc.Width = 500;
@@ -362,8 +369,26 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	descDSV.Texture2D.MipSlice = 0;
 	descDSV.Flags = 0;
 
+	D3D11_TEXTURE2D_DESC Tex2DDescDEPTH;
+	ZeroMemory(&Tex2DDescDEPTH, sizeof(Tex2DDescDEPTH));
+	Tex2DDescDEPTH.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+	Tex2DDescDEPTH.Format = DXGI_FORMAT_D32_FLOAT;
+	Tex2DDescDEPTH.MiscFlags = 0;
+	Tex2DDescDEPTH.SampleDesc.Count = 1;
+	Tex2DDescDEPTH.Width = 500;
+	Tex2DDescDEPTH.Height = 500;
+	Tex2DDescDEPTH.MipLevels = 1;
+	Tex2DDescDEPTH.ArraySize = 1;
+
+	device->CreateTexture2D(&Tex2DDescDEPTH, NULL, &tex2DEPTH);
+
 	// CREATE DEPTH STENCIL VIEW
-	device->CreateDepthStencilView(tex2, &descDSV, &stenViewTex2);
+	device->CreateDepthStencilView(tex2DEPTH, &descDSV, &stenViewTex2);
+
+	// POST PROCESS
+	device->CreateShaderResourceView(tex2, &sRVDescTex2, &sRV);
+	device->CreateShaderResourceView(tex2, &sRVDescTex2, &sRV2);
+
 
 	// CAMERA SETUP
 	float nearPlane = 0.1f, farPlane = 100, fieldOfView = 30, AspectRatio = BACKBUFFER_HEIGHT / BACKBUFFER_WIDTH;
@@ -388,13 +413,16 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 		threads[i].join();
 
 	// WORLD MATRICIES SETUP
-	obj.worldMatrix = XMMatrixIdentity();
-	obj.worldMatrix = XMMatrixTranslation(pL.pos.x, pL.pos.y, pL.pos.z) * obj.worldMatrix;
+	star.TO_VRAM.worldMatrix = XMMatrixIdentity();
+	star.TO_VRAM.worldMatrix = XMMatrixTranslation(pL.pos.x, pL.pos.y, pL.pos.z) * star.TO_VRAM.worldMatrix;
 
-	ground.worldMatrix = XMMatrixIdentity();
-	ground.worldMatrix = XMMatrixTranslation(0, -1, 5) * ground.worldMatrix;
+	ground.TO_VRAM.worldMatrix = XMMatrixIdentity();
+	ground.TO_VRAM.worldMatrix = XMMatrixTranslation(0, -1, 5) * ground.TO_VRAM.worldMatrix;
 
-	box.worldMatrix = XMMatrixIdentity();
+	box.TO_VRAM.worldMatrix = XMMatrixIdentity();
+
+	screen.TO_VRAM.worldMatrix = XMMatrixIdentity();
+	screen.TO_VRAM.worldMatrix = XMMatrixScaling(20, 20, 20) * screen.TO_VRAM.worldMatrix;
 
 	// INSTANCING
 	XMMATRIX ZackWorld = XMLoadFloat4x4(&Zack.worldMatrix);
@@ -446,7 +474,7 @@ bool DEMO_APP::Run()
 
 	// MOVEMENT
 	CameraMovement(camera, time, xMove, yMove, zMove);
-	PointLightMovement(pL, time, xMovePL, yMovePL, zMovePL, obj.worldMatrix);
+	PointLightMovement(pL, time, xMovePL, yMovePL, zMovePL, star.TO_VRAM.worldMatrix);
 	SpotLightMovement(sL, time, xMoveSL, yMoveSL, zMoveSL);
 
 	// VIEW SETUP
@@ -478,20 +506,16 @@ bool DEMO_APP::Run()
 	// RENDER TO TEXTURE SET UP
 	dContext->OMSetRenderTargets(1, &rTView2, stenViewTex2);
 
-
 	float color[4];
 	color[2] = 0;
 	dContext->ClearRenderTargetView(rTView2, color);
-
-	// Clear the depth buffer.
-	dContext->ClearDepthStencilView(stenView, D3D11_CLEAR_DEPTH, 1, 0);
 
 	// VIEW LOOP
 		dContext->Map(cBufferView, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
 		memcpy(map.pData, &camera, sizeof(camera));
 		dContext->Unmap(cBufferView, 0);
 		dContext->RSSetViewports(1, &vPort3);
-		box.worldMatrix.r[3] = XMMatrixInverse(0, camera.viewMatrix).r[3];
+		box.TO_VRAM.worldMatrix.r[3] = XMMatrixInverse(0, camera.viewMatrix).r[3];
 
 		// SKYBOX
 		ID3D11SamplerState *sState;
@@ -512,18 +536,19 @@ bool DEMO_APP::Run()
 		dContext->VSSetShader(VShaderSkyBox, NULL, 0);
 		dContext->PSSetShader(PShaderSkyBox, NULL, 0);
 
-		dContext->IASetIndexBuffer(boxIBuffer, DXGI_FORMAT_R32_UINT, offSet);
+		dContext->IASetIndexBuffer(box.IBuffer, DXGI_FORMAT_R32_UINT, offSet);
 		dContext->Map(loadCBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
-		memcpy(map.pData, &box, sizeof(box));
+		memcpy(map.pData, &box.TO_VRAM, sizeof(box.TO_VRAM));
 		dContext->Unmap(loadCBuffer, 0);
 
-		dContext->IASetVertexBuffers(0, 1, &boxVBuffer, &stride, &offSet);
-		dContext->PSSetShaderResources(0, 1, &boxSRView);
+		dContext->IASetVertexBuffers(0, 1, &box.VBuffer, &stride, &offSet);
+		dContext->PSSetShaderResources(0, 1, &box.SRView);
 
 		dContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		dContext->DrawIndexed(36, 0, 0);
 
-		dContext->ClearDepthStencilView(stenView, D3D11_CLEAR_DEPTH, 1, 0);
+		// Clear the depth buffer.
+		dContext->ClearDepthStencilView(stenViewTex2, D3D11_CLEAR_DEPTH, 1, 0);
 
 		// COLORED OBJS
 		stride = sizeof(SIMPLE_VERTEX), offSet = 0;
@@ -533,16 +558,16 @@ bool DEMO_APP::Run()
 		dContext->PSSetShader(PShaderCOLOR, NULL, 0);
 
 		// STAR
-		dContext->IASetIndexBuffer(starIBuffer, DXGI_FORMAT_R32_UINT, offSet);
+		dContext->IASetIndexBuffer(star.IBuffer, DXGI_FORMAT_R32_UINT, offSet);
 		dContext->Map(objCBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
-		memcpy(map.pData, &obj, sizeof(obj));
+		memcpy(map.pData, &star.TO_VRAM, sizeof(star.TO_VRAM));
 		dContext->Unmap(objCBuffer, 0);
 
-		dContext->IASetVertexBuffers(0, 1, &starVBuffer, &stride, &offSet);
-		dContext->IASetIndexBuffer(starIBuffer, DXGI_FORMAT_R32_UINT, offSet);
+		dContext->IASetVertexBuffers(0, 1, &star.VBuffer, &stride, &offSet);
+		dContext->IASetIndexBuffer(star.IBuffer, DXGI_FORMAT_R32_UINT, offSet);
 
 		dContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		dContext->DrawIndexed(numIn, 0, 0);
+		dContext->DrawIndexed(star.numIn, 0, 0);
 
 		// TEXTURED OBJS
 		stride = sizeof(OBJ_TO_VRAM), offSet = 0;
@@ -552,13 +577,13 @@ bool DEMO_APP::Run()
 		dContext->VSSetConstantBuffers(0, 1, &loadCBuffer);
 
 		// GROUND
-		dContext->IASetIndexBuffer(groundIBuffer, DXGI_FORMAT_R32_UINT, offSet);
+		dContext->IASetIndexBuffer(ground.IBuffer, DXGI_FORMAT_R32_UINT, offSet);
 		dContext->Map(loadCBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
-		memcpy(map.pData, &ground, sizeof(ground));
+		memcpy(map.pData, &ground.TO_VRAM, sizeof(ground.TO_VRAM));
 		dContext->Unmap(loadCBuffer, 0);
 
-		dContext->IASetVertexBuffers(0, 1, &groundVBuffer, &stride, &offSet);
-		dContext->PSSetShaderResources(0, 1, &groundSRView);
+		dContext->IASetVertexBuffers(0, 1, &ground.VBuffer, &stride, &offSet);
+		dContext->PSSetShaderResources(0, 1, &ground.SRView);
 
 		dContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		dContext->DrawIndexed(6, 0, 0);
@@ -576,7 +601,7 @@ bool DEMO_APP::Run()
 		dContext->VSSetShader(VSShaderInstance, NULL, 0);
 		dContext->DrawInstanced(Zack.indexCount, 3, 0, 0);
 		//dContext->DrawIndexed(Zack.indexCount, 0, 0);
-
+		
 		//// Behemoth
 		//dContext->IASetIndexBuffer(Behemoth.IBuffer, DXGI_FORMAT_R32_UINT, offSet);
 		//dContext->Map(loadCBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
@@ -605,7 +630,7 @@ bool DEMO_APP::Run()
 			memcpy(map.pData, &camera, sizeof(camera));
 			dContext->Unmap(cBufferView, 0);
 			dContext->RSSetViewports(1, &vPort);
-			box.worldMatrix.r[3] = XMMatrixInverse(0, camera.viewMatrix).r[3];
+			box.TO_VRAM.worldMatrix.r[3] = XMMatrixInverse(0, camera.viewMatrix).r[3];
 		}
 		else if (i == 1)
 		{
@@ -613,7 +638,7 @@ bool DEMO_APP::Run()
 			memcpy(map.pData, &cameraTwo, sizeof(cameraTwo));
 			dContext->Unmap(cBufferView, 0);
 			dContext->RSSetViewports(1, &vPort2);
-			box.worldMatrix.r[3] = XMMatrixInverse(0, cameraTwo.viewMatrix).r[3];
+			box.TO_VRAM.worldMatrix.r[3] = XMMatrixInverse(0, cameraTwo.viewMatrix).r[3];
 		}
 	
 		// SKYBOX
@@ -635,13 +660,13 @@ bool DEMO_APP::Run()
 		dContext->VSSetShader(VShaderSkyBox, NULL, 0);
 		dContext->PSSetShader(PShaderSkyBox, NULL, 0);
 	
-		dContext->IASetIndexBuffer(boxIBuffer, DXGI_FORMAT_R32_UINT, offSet);
+		dContext->IASetIndexBuffer(box.IBuffer, DXGI_FORMAT_R32_UINT, offSet);
 		dContext->Map(loadCBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
-		memcpy(map.pData, &box, sizeof(box));
+		memcpy(map.pData, &box.TO_VRAM, sizeof(box.TO_VRAM));
 		dContext->Unmap(loadCBuffer, 0);
 	
-		dContext->IASetVertexBuffers(0, 1, &boxVBuffer, &stride, &offSet);
-		dContext->PSSetShaderResources(0, 1, &boxSRView);
+		dContext->IASetVertexBuffers(0, 1, &box.VBuffer, &stride, &offSet);
+		dContext->PSSetShaderResources(0, 1, &box.SRView);
 	
 		dContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		dContext->DrawIndexed(36, 0, 0);
@@ -656,16 +681,16 @@ bool DEMO_APP::Run()
 		dContext->PSSetShader(PShaderCOLOR, NULL, 0);
 	
 		// STAR
-		dContext->IASetIndexBuffer(starIBuffer, DXGI_FORMAT_R32_UINT, offSet);
+		dContext->IASetIndexBuffer(star.IBuffer, DXGI_FORMAT_R32_UINT, offSet);
 		dContext->Map(objCBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
-		memcpy(map.pData, &obj, sizeof(obj));
+		memcpy(map.pData, &star.TO_VRAM, sizeof(star.TO_VRAM));
 		dContext->Unmap(objCBuffer, 0);
 	
-		dContext->IASetVertexBuffers(0, 1, &starVBuffer, &stride, &offSet);
-		dContext->IASetIndexBuffer(starIBuffer, DXGI_FORMAT_R32_UINT, offSet);
+		dContext->IASetVertexBuffers(0, 1, &star.VBuffer, &stride, &offSet);
+		dContext->IASetIndexBuffer(star.IBuffer, DXGI_FORMAT_R32_UINT, offSet);
 	
 		dContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		dContext->DrawIndexed(numIn, 0, 0);
+		dContext->DrawIndexed(star.numIn, 0, 0);
 	
 		// TEXTURED OBJS
 		stride = sizeof(OBJ_TO_VRAM), offSet = 0;
@@ -675,12 +700,12 @@ bool DEMO_APP::Run()
 		dContext->VSSetConstantBuffers(0, 1, &loadCBuffer);
 	
 		// GROUND
-		dContext->IASetIndexBuffer(groundIBuffer, DXGI_FORMAT_R32_UINT, offSet);
+		dContext->IASetIndexBuffer(ground.IBuffer, DXGI_FORMAT_R32_UINT, offSet);
 		dContext->Map(loadCBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
-		memcpy(map.pData, &ground, sizeof(ground));
+		memcpy(map.pData, &ground.TO_VRAM, sizeof(ground.TO_VRAM));
 		dContext->Unmap(loadCBuffer, 0);
 	
-		dContext->IASetVertexBuffers(0, 1, &groundVBuffer, &stride, &offSet);
+		dContext->IASetVertexBuffers(0, 1, &ground.VBuffer, &stride, &offSet);
 		dContext->PSSetShaderResources(0, 1, &sRVTex2);
 	
 		dContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -698,10 +723,33 @@ bool DEMO_APP::Run()
 		dContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		dContext->VSSetShader(VSShaderInstance, NULL, 0);
 		dContext->DrawInstanced(Zack.indexCount, 3, 0, 0);
-	
+
+		// SCREEN
+		//dContext->PSSetShader(PSShaderPostPros, NULL, 0);
+		//dContext->VSSetShader(VSShaderPostPros, NULL, 0);
+		//dContext->IASetIndexBuffer(screen.IBuffer, DXGI_FORMAT_R32_UINT, offSet);
+		//dContext->Map(loadCBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &map);
+		//memcpy(map.pData, &screen.TO_VRAM, sizeof(screen.TO_VRAM));
+		//dContext->Unmap(loadCBuffer, 0);
+		//
+		//dContext->IASetVertexBuffers(0, 1, &screen.VBuffer, &stride, &offSet);
+		//
+		//if (i == 0)
+		//	dContext->PSSetShaderResources(0, 1, &sRV);
+		//else
+		//	dContext->PSSetShaderResources(0, 1, &sRV2);
+		
+		dContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		dContext->DrawIndexed(6, 0, 0);
+
+		//ID3D11ShaderResourceView *null{};
+		//dContext->PSSetShaderResources(0, 1, &null);
+		//dContext->VSSetShaderResources(0, 1, &null);
+
 		// TO FRONT BUFFER
 	}
-
+	ID3D11DepthStencilView *null{};
+	dContext->OMSetRenderTargets(1, &rTView, null);
 
 	swapChain->Present(0, 0);
 	return true;
